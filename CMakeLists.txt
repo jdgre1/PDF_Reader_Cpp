@@ -20,10 +20,8 @@ find_package( Tesseract 3.05 REQUIRED )
 ### ~~~~~~~~~~~~ General Include/Add ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 include_directories(include ${OpenCV_INCLUDE_DIR} ${Tesseract_INCLUDE_DIRS})
-
-
 add_subdirectory(src)
-#add_subdirectory(tst)
+add_subdirectory(tst)
 add_subdirectory(lib/googletest)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

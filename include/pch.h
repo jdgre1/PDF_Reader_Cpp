@@ -16,5 +16,5 @@
 #include <memory.h>
 #include <leptonica/allheaders.h>
 #include <tesseract/baseapi.h>
-
+#include <thread>
 #endif
