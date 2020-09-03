@@ -1,3 +1,4 @@
+/*
 #include <iostream>
 #include <stdio.h>
 #include <conio.h>
@@ -12,7 +13,9 @@
 #include <memory.h>
 #include <leptonica/allheaders.h>
 #include <tesseract/baseapi.h>
+*/
 
+#include <pch.h> 
 using namespace cv;
 using namespace std;
 using namespace cv::text;
