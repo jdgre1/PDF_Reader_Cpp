@@ -1,15 +1,46 @@
 #include <pch.h> 
+#include <page_processor.h>
 using namespace cv;
 using namespace std;
 using namespace cv::text;
+#include <filesystem>
+//#include "C:/Users/gregg/Documents/ImageMagick-Windows-master/ImageMagick-Windows-master/ImageMagick/Magick++/lib/Magick++.h"
 
+//#include <MagickCore/MagickCore.h>
+#include <Magick++/lib/Magick++.h> 
+namespace fs = std::filesystem;
+using namespace Magick;
 cv::Mat pix8ToMat(Pix* pix8);
 
 void RunPDFReader(){
 
-	const int processor_count = std::thread::hardware_concurrency();
 
 
+
+
+	int processor_count = std::thread::hardware_concurrency();
+	//vector<PageProcessor> PageProcessor(processor_count);
+	std::string load_path = "../../data/";
+	std::string save_path = "../../data/PDF_imgs/";
+	int num_files = 0;
+	for (const auto& entry : fs::directory_iterator(load_path)) {
+		//std::cout << entry.path() << std::endl;
+		num_files++;
+	}
+
+	int files_per_thread = int(processor_count / num_files);
+	if (files_per_thread < processor_count) {
+		processor_count = files_per_thread;
+	}
+
+
+	int remainder_files = processor_count % num_files;
+
+	// Create threads based on number of processors:
+	for (size_t i = 0; i < processor_count; i++) {
+
+
+	}
 
 
 	//tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI(); // No need to delete with unique pointer assigned 

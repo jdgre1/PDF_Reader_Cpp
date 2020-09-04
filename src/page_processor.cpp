@@ -9,6 +9,9 @@ PageProcessor::PageProcessor(std::string imgs_[], int& num_imgs)
 	m_preprocessParams->imgs_ptr = imgs_;
 	m_preprocessParams->numImgs = num_imgs;
 }
+PageProcessor::PageProcessor() {
+	m_preprocessParams->api = std::make_unique<tesseract::TessBaseAPI>();
+}
 
 void PageProcessor::correctOrientation()
 {

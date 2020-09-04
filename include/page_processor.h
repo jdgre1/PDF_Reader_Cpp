@@ -3,6 +3,9 @@
 #define PAGE_PROCESSOR__H__
 
 #include <pch.h>
+#include <memory.h>
+#include <leptonica/allheaders.h>
+#include <tesseract/baseapi.h>
 
 class PageProcessor {
 
@@ -10,7 +13,7 @@ public:
 	struct PreprocessParams {
 
 		// tesseract variables
-		unique_ptr<tesseract::TessBaseAPI> api; 
+		std::unique_ptr<tesseract::TessBaseAPI> api; 
 		tesseract::Orientation orientation;
 		tesseract::WritingDirection direction;
 		tesseract::TextlineOrder order;
@@ -36,6 +39,7 @@ public:
 
 
 	PageProcessor(std::string imgs[], int& num_imgs);
+	PageProcessor();
 	void correctOrientation();
 	void scanPage();
 

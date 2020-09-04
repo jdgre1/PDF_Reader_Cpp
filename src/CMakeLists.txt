@@ -15,5 +15,5 @@ target_link_libraries(OPENCV_API_CALLS ${OpenCV_LIBS})
 
 set(project_sources main.cpp PDFReaderRun.cpp)
 add_executable(PDF_Reader ${project_sources} )
-target_link_libraries(PDF_Reader PageProcessor OPENCV_API_CALLS)
+target_link_libraries(PDF_Reader PageProcessor OPENCV_API_CALLS ${ImageMagick_LIBRARIES})
 target_precompile_headers(PDF_Reader PRIVATE ../include/pch.h)
