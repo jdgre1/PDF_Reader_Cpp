@@ -19,6 +19,7 @@ public:
 		tesseract::WritingDirection direction;
 		tesseract::TextlineOrder order;
 		tesseract::PageIterator* it;
+		float deskew_angle;
 		PIX* image;
 
 		// reading/writing variables
@@ -45,8 +46,9 @@ public:
 	PageProcessor();
 	~PageProcessor();
 	//void setFilesArr(std::filesystem::path imgs[], int& num_imgs); vector<std::filesystem::path>
-	void setFilesArr(std::vector<std::filesystem::path>&);
+	void setFilesArr(const std::vector<std::filesystem::path>&, const int& id);
 	void correctOrientation();
+
 	void scanPage();
 	std::thread pageThread();
 	void runThread();
@@ -55,6 +57,8 @@ private:
 	PreprocessParams m_preprocessParams;
 	//std::unique_ptr<tesseract::TessBaseAPI> api;
 	tesseract::TessBaseAPI* api;
+	int iD;
+	bool notDeleted = true;
 
 
 
