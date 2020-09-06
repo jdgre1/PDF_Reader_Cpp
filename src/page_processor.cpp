@@ -3,18 +3,48 @@ using namespace cv;
 using namespace std;
 using namespace cv::text;
 
-PageProcessor::PageProcessor(std::string imgs_[], int& num_imgs)
+PageProcessor::PageProcessor(std::filesystem::path imgs_[], int& num_imgs)
 {
-	m_preprocessParams->api = std::make_unique<tesseract::TessBaseAPI>();
-	m_preprocessParams->imgs_ptr = imgs_;
-	m_preprocessParams->numImgs = num_imgs;
+	//api = std::make_unique<tesseract::TessBaseAPI>();
+	api = new tesseract::TessBaseAPI();
+	//m_preprocessParams->imgs_ptr = imgs_;
+	//m_preprocessParams->numImgs = num_imgs;
 }
 PageProcessor::PageProcessor() {
-	m_preprocessParams->api = std::make_unique<tesseract::TessBaseAPI>();
+	//m_preprocessParams->api = std::make_unique<tesseract::TessBaseAPI>();
+	//m_preprocessParams = PageProcessor::PreprocessParams();
+}
+
+PageProcessor::~PageProcessor()
+{
+	delete api;
+}
+
+//void PageProcessor::setFilesArr(std::filesystem::path imgs_[], int& num_img_s)  
+void PageProcessor::setFilesArr(vector<std::filesystem::path>& files)
+{
+	//tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
+	api = new tesseract::TessBaseAPI();
+	//api = std::make_unique<tesseract::TessBaseAPI>();
+	//delete api;
+	//vector<std::filesystem::path> vec(files.size());
+	m_preprocessParams.imgFiles.resize(files.size());// = vector<std::filesystem::path> vec(files.size());
+	m_preprocessParams.imgFiles = files;
+	//m_preprocessParams->imgs_ptr = imgs_;
+	//m_preprocessParams->numImgs = num_img_s;
+}
+
+std::thread PageProcessor::pageThread() {
+	return std::thread(&PageProcessor::runThread, this);
+}
+
+void PageProcessor::runThread() {
+	this->~PageProcessor();
 }
 
 void PageProcessor::correctOrientation()
 {
+	/*
 	string imgs[6] = { m_preprocessParams->folder_dir + "collections-0.jpg", m_preprocessParams->folder_dir + "collections-1.jpg", m_preprocessParams->folder_dir + "collections-2.jpg", 
 		m_preprocessParams->folder_dir + "collections-3.jpg", m_preprocessParams->folder_dir + "collections-4.jpg", m_preprocessParams->folder_dir + "collections-5.jpg" };
 	
@@ -23,7 +53,7 @@ void PageProcessor::correctOrientation()
 	for (int i = 0; i < m_preprocessParams->numImgs; i++) {
 
 		m_preprocessParams->file = *(m_preprocessParams->imgs_ptr + i);
-
+		*/
 
 
 		/*
@@ -75,7 +105,7 @@ void PageProcessor::correctOrientation()
 		imshow("img_mat", img_mat);
 		imshow("dst", dst);
 		waitKey();*/
-	}
+	//}
 
 
 }
@@ -128,3 +158,5 @@ return 0;
 }
 */
 }
+
+

@@ -4,43 +4,56 @@ using namespace cv;
 using namespace std;
 using namespace cv::text;
 #include <filesystem>
-//#include "C:/Users/gregg/Documents/ImageMagick-Windows-master/ImageMagick-Windows-master/ImageMagick/Magick++/lib/Magick++.h"
 
-//#include <MagickCore/MagickCore.h>
-#include <Magick++/lib/Magick++.h> 
 namespace fs = std::filesystem;
-using namespace Magick;
+
 cv::Mat pix8ToMat(Pix* pix8);
 
 void RunPDFReader(){
 
-
-
-
-
 	int processor_count = std::thread::hardware_concurrency();
 	//vector<PageProcessor> PageProcessor(processor_count);
-	std::string load_path = "../../data/";
-	std::string save_path = "../../data/PDF_imgs/";
-	int num_files = 0;
+	std::string load_path = "../../data/PDF_imgs/";
+	
+	int remainder_files = 0;
+	vector<std::filesystem::path> files;
 	for (const auto& entry : fs::directory_iterator(load_path)) {
 		//std::cout << entry.path() << std::endl;
-		num_files++;
+		files.push_back(entry.path());
 	}
 
-	int files_per_thread = int(processor_count / num_files);
-	if (files_per_thread < processor_count) {
-		processor_count = files_per_thread;
+	int num_files = files.size();
+	if (num_files < processor_count) {
+		processor_count = num_files;
 	}
 
+	vector < vector<std::filesystem::path>> processor_files(processor_count);
+	
+	// Add files to each processor depending on number of files to be processed
+	int j = 0;
+	for (size_t i = 0; i < num_files; i++) {
+		processor_files[j].push_back(files[i]);
+		j++;
+		j = (j == processor_count) ? 0 : j;
+	}
 
-	int remainder_files = processor_count % num_files;
+	std::filesystem::path* filesArr[5];
+	PageProcessor pp;// = DashboardTracker();
+	vector<PageProcessor> PageProcessors(processor_count, pp);
+	thread* frameThreads{ new thread[processor_count] };
 
-	// Create threads based on number of processors:
 	for (size_t i = 0; i < processor_count; i++) {
-
-
+		//std::filesystem::path*  filesArr = &processor_files[i];
+		//int arrSize = processor_files[i].size();
+		PageProcessors[i].setFilesArr(processor_files[i]);
+		//frameThreads[i] = DashboardTrackers[i].dashboardThread(std::ref(imgAvailable), std::ref(stop_threading), std::ref(trackBoxVec), std::ref(trackingStatus), std::ref(lines), std::ref(imgAvailGuard), std::ref(trackStatusGuard), std::ref(trackBoxGuard), std::ref(lanesGuard));
+		frameThreads[i] = PageProcessors[i].pageThread();
 	}
+
+	for (int m = 0; m < processor_count; m++) {
+		frameThreads[m].join();
+	}
+	delete[] frameThreads;
 
 
 	//tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI(); // No need to delete with unique pointer assigned 
