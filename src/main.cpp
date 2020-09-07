@@ -1,10 +1,13 @@
+#include <pch.h>
+using namespace std;
+using namespace cv;
 
 void RunPDFReader();
 
 
 int main(int argc, char* argv[])
 {
-
+    
 	RunPDFReader();
 
 }

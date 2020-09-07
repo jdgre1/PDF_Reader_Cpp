@@ -7,6 +7,10 @@
 #include <leptonica/allheaders.h>
 #include <tesseract/baseapi.h>
 #include <filesystem>
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudafilters.hpp>
+
+#define HAS_CUDA 1
 
 class PageProcessor {
 
@@ -34,6 +38,7 @@ public:
 		cv::Mat img_mat;
 		cv::Mat rot_mat;
 		cv::Mat dst;
+		
 		cv::Point2f src_center;
 		cv::Rect2f bbox;
 
@@ -56,10 +61,15 @@ public:
 private:
 	PreprocessParams m_preprocessParams;
 	//std::unique_ptr<tesseract::TessBaseAPI> api;
-	tesseract::TessBaseAPI* api;
+	tesseract::TessBaseAPI* api;  // https://stackoverflow.com/questions/49454843/different-tesseract-result-for-mat-and-pix - can also create a stack object!!
 	int iD;
 	bool notDeleted = true;
-
+	cv::Mat currImg, roiMat;
+	cv::cuda::GpuMat gpuImg, grayImg, roiImg;
+	char* m_outText; // = api->GetUTF8Text()
+	int m_confidence; // = api->MeanTextConf();
+	cv::Rect roi;
+	//bool m_orientation_corrected = false;
 
 
 

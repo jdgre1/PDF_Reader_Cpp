@@ -12,7 +12,6 @@ cv::Mat pix8ToMat(Pix* pix8);
 void RunPDFReader(){
 
 	int processor_count = std::thread::hardware_concurrency();
-	//vector<PageProcessor> PageProcessor(processor_count);
 	std::string load_path = "../../data/PDF_imgs/";
 	
 	int remainder_files = 0;
@@ -28,6 +27,10 @@ void RunPDFReader(){
 	int num_files = files.size();
 	if (num_files < processor_count) {
 		processor_count = num_files;
+	}
+	else { 
+		// Need to save one processor for the main thread:
+		processor_count--;
 	}
 
 	vector < vector<std::filesystem::path>> processor_files(processor_count);
@@ -54,6 +57,22 @@ void RunPDFReader(){
 		frameThreads[i] = PageProcessors[i].pageThread();
 	}
 
+	// main thread to show status of pdf-reading:
+	// Access member-variables of each object here: (struct of roi_rect, currImg, word_found = true/false -> colour of rectangle changes, actual word found, confidence) - display that on screen
+	// Stitch all current images together to form one display image: 
+	bool not_finished = true;
+	while (not_finished) {
+		for (size_t i = 0; i < processor_count; i++) {
+
+		}
+	}
+
+
+
+
+	//imshow("Image", currImg(roi));
+	//waitKey(100);
+
 	for (int m = 0; m < processor_count; m++) {
 		frameThreads[m].join();
 	}
@@ -66,28 +85,5 @@ void RunPDFReader(){
 
 
 
-Pix* mat8ToPix(cv::Mat* mat8)
-{
-	Pix* pixd = pixCreate(mat8->size().width, mat8->size().height, 8);
-	for (int y = 0; y < mat8->rows; y++) {
-		for (int x = 0; x < mat8->cols; x++) {
-			pixSetPixel(pixd, x, y, (l_uint32)mat8->at<uchar>(y, x));
-		}
-	}
-	return pixd;
-}
-
-cv::Mat pix8ToMat(Pix* pix8)
-{
-	cv::Mat mat(cv::Size(pix8->w, pix8->h), CV_8UC1);
-	uint32_t* line = pix8->data;
-	for (uint32_t y = 0; y < pix8->h; ++y) {
-		for (uint32_t x = 0; x < pix8->w; ++x) {
-			mat.at<uchar>(y, x) = GET_DATA_BYTE(line, x);
-		}
-		line += pix8->wpl;
-	}
-	return mat;
-}
 
 

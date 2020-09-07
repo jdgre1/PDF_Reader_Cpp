@@ -7,7 +7,7 @@ PageProcessor::PageProcessor(std::filesystem::path imgs_[], int& num_imgs)
 {
 	//api = std::make_unique<tesseract::TessBaseAPI>();
 	api = new tesseract::TessBaseAPI();
-	
+
 	//m_preprocessParams->imgs_ptr = imgs_;
 	//m_preprocessParams->numImgs = num_imgs;
 }
@@ -18,9 +18,11 @@ PageProcessor::PageProcessor() {
 
 PageProcessor::~PageProcessor()
 {
+	//cout << "Deleted iD: " << iD << endl;
 	if (iD >= 0)
 		delete api;
-	
+
+
 }
 
 //void PageProcessor::setFilesArr(std::filesystem::path imgs_[], int& num_img_s)  
@@ -52,63 +54,59 @@ void PageProcessor::runThread() {
 	for (size_t i = 0; i < m_preprocessParams.imgFiles.size(); i++) {
 		m_preprocessParams.file = m_preprocessParams.imgFiles[i];
 		correctOrientation();
-		
+		scanPage();
 	}
 
-	// Delete object from heap:
-	if (notDeleted) {
-		//this->~PageProcessor();
-		notDeleted = false;
-	}
 }
 
 void PageProcessor::correctOrientation()
 {
-		//const char* inputfile = (m_preprocessParams.file.string()).c_str();
-		string temp = m_preprocessParams.file.string();
-		const char* inputfile = temp.c_str();
-		m_preprocessParams.image = pixRead(inputfile);
+	//const char* inputfile = (m_preprocessParams.file.string()).c_str();
+	string temp = m_preprocessParams.file.string();
+	const char* inputfile = temp.c_str();
+	m_preprocessParams.image = pixRead(inputfile);
 
-		api->SetPageSegMode(tesseract::PSM_AUTO_OSD);
-		api->SetImage(m_preprocessParams.image);
-		//api->Recognize(0); // too time-consuming and not necessary to determine dpi
-		m_preprocessParams.it = api->AnalyseLayout();
-		m_preprocessParams.it->Orientation(&m_preprocessParams.orientation, &m_preprocessParams.direction, &m_preprocessParams.order, &m_preprocessParams.deskew_angle);
+	api->SetPageSegMode(tesseract::PSM_AUTO_OSD);
+	api->SetImage(m_preprocessParams.image);
+	//api->Recognize(0); // too time-consuming and not necessary to determine dpi
+	m_preprocessParams.it = api->AnalyseLayout();
+	m_preprocessParams.it->Orientation(&m_preprocessParams.orientation, &m_preprocessParams.direction, &m_preprocessParams.order, &m_preprocessParams.deskew_angle);
 
-		// Use OpenCV to read-image and correct rotation:
-		float major_rotate_angle = 0.0;
-		m_preprocessParams.img_mat = imread(m_preprocessParams.file.string(), IMREAD_COLOR);
-		Point2f src_center(m_preprocessParams.img_mat.cols / 2.0F, m_preprocessParams.img_mat.rows / 2.0F);
+	// Use OpenCV to read-image and correct rotation:
+	float major_rotate_angle = 0.0;
+	m_preprocessParams.img_mat = imread(m_preprocessParams.file.string(), IMREAD_COLOR);
+	Point2f src_center(m_preprocessParams.img_mat.cols / 2.0F, m_preprocessParams.img_mat.rows / 2.0F);
 
-		if (m_preprocessParams.orientation == 1) {
-			major_rotate_angle = -90.0;
-		}
-		else if (m_preprocessParams.orientation == 2) {
-			major_rotate_angle = -180.0;
-		}
+	if (m_preprocessParams.orientation == 1) {
+		major_rotate_angle = -90.0;
+	}
+	else if (m_preprocessParams.orientation == 2) {
+		major_rotate_angle = -180.0;
+	}
 
-		else if (m_preprocessParams.orientation == 3) {
-			major_rotate_angle = 90.0;
-		}
+	else if (m_preprocessParams.orientation == 3) {
+		major_rotate_angle = 90.0;
+	}
 
-		Mat rot_mat = getRotationMatrix2D(src_center, m_preprocessParams.deskew_angle - major_rotate_angle, 1);
-		cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), m_preprocessParams.img_mat.size(), m_preprocessParams.deskew_angle - major_rotate_angle).boundingRect2f(); //https://stackoverflow.com/questions/22041699/rotate-an-image-without-cropping-in-opencv-in-c
-		// adjust transformation matrix
-		rot_mat.at<double>(0, 2) += bbox.width / 2.0 - m_preprocessParams.img_mat.cols / 2.0;
-		rot_mat.at<double>(1, 2) += bbox.height / 2.0 - m_preprocessParams.img_mat.rows / 2.0;
+	Mat rot_mat = getRotationMatrix2D(src_center, m_preprocessParams.deskew_angle - major_rotate_angle, 1);
+	cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), m_preprocessParams.img_mat.size(), m_preprocessParams.deskew_angle - major_rotate_angle).boundingRect2f(); //https://stackoverflow.com/questions/22041699/rotate-an-image-without-cropping-in-opencv-in-c
+	// adjust transformation matrix
+	rot_mat.at<double>(0, 2) += bbox.width / 2.0 - m_preprocessParams.img_mat.cols / 2.0;
+	rot_mat.at<double>(1, 2) += bbox.height / 2.0 - m_preprocessParams.img_mat.rows / 2.0;
 
-		cv::Mat dst;
-		warpAffine(m_preprocessParams.img_mat, dst, rot_mat, bbox.size());
-		//auto api = std::make_unique<tesseract::TessBaseAPI>();
-		std::string new_filename = m_preprocessParams.file.string().substr(0, m_preprocessParams.file.string().size() - 4) + "_corrected.jpg";
-		imwrite(new_filename, dst);
+	cv::Mat dst;
+	warpAffine(m_preprocessParams.img_mat, dst, rot_mat, bbox.size());
+	//auto api = std::make_unique<tesseract::TessBaseAPI>();
+	std::string new_filename = m_preprocessParams.file.string().substr(0, m_preprocessParams.file.string().size() - 4) + "_corrected.jpg";
+	imwrite(new_filename, dst);
+	currImg = dst;
 
-		/*Size size(int(dst.cols / 2), int(dst.rows / 2));//the dst image size,e.g.100x100
-		resize(dst, dst, size);//resize image
+	/*Size size(int(dst.cols / 2), int(dst.rows / 2));//the dst image size,e.g.100x100
+	resize(dst, dst, size);//resize image
 
-		imshow("img_mat", m_preprocessParams.img_mat);
-		imshow("dst", dst);
-		waitKey();*/
+	imshow("img_mat", m_preprocessParams.img_mat);
+	imshow("dst", dst);
+	waitKey();*/
 
 }
 
@@ -116,35 +114,49 @@ void PageProcessor::correctOrientation()
 
 void PageProcessor::scanPage()
 {
-	/*
-for (int i = 0; i < sizeof(imgs)/ sizeof(imgs[0]); i++) {
-
-	Mat image;
-	image = imread(imgs[i], IMREAD_COLOR);
-	int winH = int(image.rows * 0.05);
-	int winL = int(image.cols * 0.3);
+	int winH = int(currImg.rows * 0.05);
+	int winL = int(currImg.cols * 0.3);
 	int startY = 0;// int(image.rows * 0.67);
 	int stepSize = 50;
 	int disp = int(winH / 2);
 	bool lastRow = false;
-	for (size_t j = startY; j < image.rows; j += disp) {
-		if (image.rows < (j + winH)) {
-			j = image.rows - winH;
+
+#if HAS_CUDA
+
+	gpuImg.upload(currImg);
+	cv::Scalar mean_pixel_val;
+	for (size_t j = startY; j < gpuImg.rows; j += disp) {
+		if (gpuImg.rows < (j + winH)) {
+			j = gpuImg.rows - winH;
 			lastRow = true;
 		}
 
-		cout << "j = " << j << endl;
+		//cout << "j = " << j << endl;
 		bool lastCol = false;
 
-		for (size_t k = 0; k <= (image.cols - winL); k += stepSize) {
-			cout << "k = " << k << endl;
-			if (image.cols < (k + winL)) {
-				k = image.cols - winL;
+		for (size_t k = 0; k <= (gpuImg.cols - winL); k += stepSize) {
+			//cout << "k = " << k << endl;
+			if (gpuImg.cols < (k + winL)) {
+				k = gpuImg.cols - winL;
 				lastCol = true;
 			}
-			cv::Rect roi = Rect(k, j, winL, winH);
-			imshow("Image", image(roi));
-			waitKey(100);
+			roi = Rect(k, j, winL, winH);
+			roiImg = gpuImg(roi);
+			cv::cuda::cvtColor(roiImg, grayImg, COLOR_BGR2GRAY);
+			grayImg.download(roiMat);
+			cv::Scalar mean_pixel_val = cv::mean(roiMat);
+			if ((mean_pixel_val[0] < 247) & (mean_pixel_val[0] > 180)) {
+
+				api->SetImage(roiMat.data, roiMat.cols, roiMat.rows, 1, roiMat.step);
+
+				m_outText = api->GetUTF8Text();
+				m_confidence = api->MeanTextConf();
+				cout << "id = " << iD << " found m_outText: " << m_outText << " with m_confidence: " << m_confidence << endl;
+			}
+			else {
+				cout << "id = " << iD << " has no content to inspect here. " << endl;
+			}
+
 
 			if (lastCol)
 				break;
@@ -153,14 +165,34 @@ for (int i = 0; i < sizeof(imgs)/ sizeof(imgs[0]); i++) {
 		if (lastRow)
 			break;
 	}
+#endif
 
-	//imshow("Image", image);
-	//waitKey();
-}
-//delete api;
-return 0;
-}
-*/
 }
 
 
+
+
+
+Pix* mat8ToPix(cv::Mat* mat8)
+{
+	Pix* pixd = pixCreate(mat8->size().width, mat8->size().height, 8);
+	for (int y = 0; y < mat8->rows; y++) {
+		for (int x = 0; x < mat8->cols; x++) {
+			pixSetPixel(pixd, x, y, (l_uint32)mat8->at<uchar>(y, x));
+		}
+	}
+	return pixd;
+}
+
+cv::Mat pix8ToMat(Pix* pix8)
+{
+	cv::Mat mat(cv::Size(pix8->w, pix8->h), CV_8UC1);
+	uint32_t* line = pix8->data;
+	for (uint32_t y = 0; y < pix8->h; ++y) {
+		for (uint32_t x = 0; x < pix8->w; ++x) {
+			mat.at<uchar>(y, x) = GET_DATA_BYTE(line, x);
+		}
+		line += pix8->wpl;
+	}
+	return mat;
+}
