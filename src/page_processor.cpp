@@ -45,17 +45,20 @@ void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, cons
 	//m_preprocessParams->numImgs = num_img_s;
 }
 
-std::thread PageProcessor::pageThread() {
-	return std::thread(&PageProcessor::runThread, this);
+std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReady) {
+	return std::thread(&PageProcessor::runThread, this, std::ref(ss), std::ref(cntrGuard), std::ref(dispReady));
 }
 
-void PageProcessor::runThread() {
+void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReady) {
 
 	for (size_t i = 0; i < m_preprocessParams.imgFiles.size(); i++) {
 		m_preprocessParams.file = m_preprocessParams.imgFiles[i];
 		correctOrientation();
-		scanPage();
+		dispReady++;
+		scanPage(ss);
 	}
+	// Augment counter-guard variable to indicate thread is finished.
+	cntrGuard++;
 
 }
 
@@ -112,7 +115,7 @@ void PageProcessor::correctOrientation()
 
 
 
-void PageProcessor::scanPage()
+void PageProcessor::scanPage(PageProcessor::StatusStruct& ss)
 {
 	int winH = int(currImg.rows * 0.05);
 	int winL = int(currImg.cols * 0.3);
@@ -144,19 +147,28 @@ void PageProcessor::scanPage()
 			roiImg = gpuImg(roi);
 			cv::cuda::cvtColor(roiImg, grayImg, COLOR_BGR2GRAY);
 			grayImg.download(roiMat);
-			cv::Scalar mean_pixel_val = cv::mean(roiMat);
+			
+			// Check data is actually present in image for reading:
+			cv::Scalar mean_pixel_val = cv::mean(roiMat);	
+			bool wordFound = false;
 			if ((mean_pixel_val[0] < 247) & (mean_pixel_val[0] > 180)) {
-
 				api->SetImage(roiMat.data, roiMat.cols, roiMat.rows, 1, roiMat.step);
-
 				m_outText = api->GetUTF8Text();
 				m_confidence = api->MeanTextConf();
 				cout << "id = " << iD << " found m_outText: " << m_outText << " with m_confidence: " << m_confidence << endl;
+				ss.confidence = m_confidence;
+				ss.actual_word = m_outText;
 			}
+
 			else {
 				cout << "id = " << iD << " has no content to inspect here. " << endl;
 			}
 
+			
+			ss.curr_img = currImg;
+			ss.struct_roi = roi;
+			ss.wordFound = wordFound;
+			
 
 			if (lastCol)
 				break;

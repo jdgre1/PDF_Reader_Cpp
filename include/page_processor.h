@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/cudafilters.hpp>
+#include "wtypes.h"
 
 #define HAS_CUDA 1
 
@@ -46,6 +47,13 @@ public:
 		
 	};
 
+	struct StatusStruct { //struct of roi_rect, currImg, word_found = true/false -> colour of rectangle changes, actual word found, confidence) -
+		cv::Rect struct_roi;
+		cv::Mat curr_img;
+		bool wordFound;
+		std::string actual_word;
+		int confidence;
+	};
 
 	PageProcessor(std::filesystem::path imgs[], int& num_imgs);
 	PageProcessor();
@@ -54,9 +62,9 @@ public:
 	void setFilesArr(const std::vector<std::filesystem::path>&, const int& id);
 	void correctOrientation();
 
-	void scanPage();
-	std::thread pageThread();
-	void runThread();
+	void scanPage(StatusStruct& ss);
+	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard);
+	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard);
 
 private:
 	PreprocessParams m_preprocessParams;
