@@ -3,13 +3,6 @@
 #define PAGE_PROCESSOR__H__
 
 #include <pch.h>
-#include <memory.h>
-#include <leptonica/allheaders.h>
-#include <tesseract/baseapi.h>
-#include <filesystem>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/cudafilters.hpp>
-#include "wtypes.h"
 
 #define HAS_CUDA 1
 
@@ -50,7 +43,7 @@ public:
 	struct StatusStruct { //struct of roi_rect, currImg, word_found = true/false -> colour of rectangle changes, actual word found, confidence) -
 		cv::Rect struct_roi;
 		cv::Mat curr_img;
-		bool wordFound;
+		bool wordFound = false;
 		std::string actual_word;
 		int confidence;
 	};
@@ -62,9 +55,9 @@ public:
 	void setFilesArr(const std::vector<std::filesystem::path>&, const int& id);
 	void correctOrientation();
 
-	void scanPage(StatusStruct& ss);
-	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard);
-	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard);
+	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard);
+	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard, std::mutex& consolePrintGuard);
+	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard, std::mutex& consolePrintGuard);
 
 private:
 	PreprocessParams m_preprocessParams;
