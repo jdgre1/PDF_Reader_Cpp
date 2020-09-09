@@ -42,7 +42,7 @@ public:
 		
 		cv::Point2f src_center;
 		cv::Rect2f bbox;
-
+		
 		//auto api = std::make_unique<tesseract::TessBaseAPI>();
 		
 	};
@@ -74,9 +74,11 @@ private:
 	bool notDeleted = true;
 	cv::Mat currImg, roiMat;
 	cv::cuda::GpuMat gpuImg, grayImg, roiImg;
-	char* m_outText; // = api->GetUTF8Text()
+	std::string m_outText; // = api->GetUTF8Text()
 	int m_confidence; // = api->MeanTextConf();
 	cv::Rect roi;
+	std::string m_terms[19] = { "HTS", "Harmonized Tarif", "Harmonised Tarif", "Harmonized classification", "Customs", "Zolltarif",
+				"Classification", "douane", "Douane", "Commodity", "Tarif", "tarif", "Harmonised", "Harmonized", "H.S", "H S", "HS", "Code", "Douanier" };
 	//bool m_orientation_corrected = false;
 
 

@@ -34,6 +34,7 @@ void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, cons
 		fprintf(stderr, "Could not initialize tesseract.\n");
 		exit(1);
 	}
+
 	iD = id;
 	cout << "object of id = " << iD << " created" << endl;
 	//api = std::make_unique<tesseract::TessBaseAPI>();
@@ -71,6 +72,7 @@ void PageProcessor::correctOrientation()
 
 	api->SetPageSegMode(tesseract::PSM_AUTO_OSD);
 	api->SetImage(m_preprocessParams.image);
+
 	//api->Recognize(0); // too time-consuming and not necessary to determine dpi
 	m_preprocessParams.it = api->AnalyseLayout();
 	m_preprocessParams.it->Orientation(&m_preprocessParams.orientation, &m_preprocessParams.direction, &m_preprocessParams.order, &m_preprocessParams.deskew_angle);
@@ -153,16 +155,27 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss)
 			bool wordFound = false;
 			if ((mean_pixel_val[0] < 247) & (mean_pixel_val[0] > 180)) {
 				api->SetImage(roiMat.data, roiMat.cols, roiMat.rows, 1, roiMat.step);
-				m_outText = api->GetUTF8Text();
+				m_outText = string(api->GetUTF8Text());
 				m_confidence = api->MeanTextConf();
-				cout << "id = " << iD << " found m_outText: " << m_outText << " with m_confidence: " << m_confidence << endl;
-				ss.confidence = m_confidence;
-				ss.actual_word = m_outText;
+
+				for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
+					
+					if (string(m_outText).find(m_terms[l]) != std::string::npos) {
+						std::cout << "found term: " << m_terms[l] << "! With confidence: " << m_confidence << endl;
+						ss.confidence = m_confidence;
+						ss.actual_word = m_terms[l];
+						break;
+					}
+				}
+
+				
+				//cout << "id = " << iD << " found m_outText: " << m_outText << " with m_confidence: " << m_confidence << endl;
+
 			}
 
-			else {
+			/*else {
 				cout << "id = " << iD << " has no content to inspect here. " << endl;
-			}
+			}*/
 
 			
 			ss.curr_img = currImg;
