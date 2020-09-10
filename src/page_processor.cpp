@@ -47,17 +47,18 @@ void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, cons
 	//m_preprocessParams->numImgs = num_img_s;
 }
 
-std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReady, mutex& consolePrintGuard) {
-	return std::thread(&PageProcessor::runThread, this, std::ref(ss), std::ref(cntrGuard), std::ref(dispReady), std::ref(consolePrintGuard));
+std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard) {
+	return std::thread(&PageProcessor::runThread, this, std::ref(ss), std::ref(cntrGuard), std::ref(consolePrintGuard));
 }
 
-void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReady, mutex& consolePrintGuard) {
+void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard) {
 
 	for (size_t i = 0; i < m_preprocessParams.imgFiles.size(); i++) {
 		m_preprocessParams.file = m_preprocessParams.imgFiles[i];
 		correctOrientation();
-		dispReady++;
+		ss.displayReady = true;
 		scanPage(ss, consolePrintGuard);
+		int a;
 	}
 	// Augment counter-guard variable to indicate thread is finished.
 	cntrGuard++;
@@ -123,17 +124,22 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 {
 	int winH = int(currImg.rows * 0.05);
 	int winL = int(currImg.cols * 0.3);
-	int startY = int(currImg.rows * 0.87); // int(currImg.rows * 0.87);  //0;// int(currImg.rows * 0.67);
+	int startY = 0; int(currImg.rows * 0.87); // int(currImg.rows * 0.87);  //0;// int(currImg.rows * 0.67);
+	int startX = 0;// int(currImg.cols * 0.7);
 	int stepSize = 50;
 	int disp = int(winH / 2);
 	bool lastRow = false;
+	int numDigits;
+	std::pair<std::string, std::vector<std::string>> newEntry;// ("baking powder", 0.3);
+	bool insert_success;
 
 #if HAS_CUDA
 
 	ss.curr_img = currImg;
 	gpuImg.upload(currImg);
 	cv::Scalar mean_pixel_val;
-	for (size_t j = startY; j < gpuImg.rows; j += disp) {
+	for (size_t j = startY; j <= (gpuImg.rows - winH); j += disp) {
+
 		if (gpuImg.rows < (j + winH)) {
 			j = gpuImg.rows - winH;
 			lastRow = true;
@@ -142,7 +148,7 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 		//cout << "j = " << j << endl;
 		bool lastCol = false;
 
-		for (size_t k = 0; k <= (gpuImg.cols - winL); k += stepSize) {
+		for (size_t k = startX; k <= (gpuImg.cols - winL); k += stepSize) {
 			//cout << "k = " << k << endl;
 			if (gpuImg.cols < (k + winL)) {
 				k = gpuImg.cols - winL;
@@ -162,37 +168,48 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 				if (api->GetSourceYResolution() < 70)
 					api->SetSourceResolution(70);
 				m_outText = string(api->GetUTF8Text());
-				m_confidence = api->MeanTextConf();
-				ss.struct_roi = roi;
+				numDigits = 0;
+				for (auto it = m_outText.begin(); it != m_outText.end(); ++it) {
+					if (std::isdigit(*it))
+						numDigits++;
+				}
+				// Only analyse text if more than 3 digits were found: 
+				if (numDigits > 3) {
+					m_confidence = api->MeanTextConf();
+					ss.struct_roi = roi;
 
-				for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
+					for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
 
-					if (string(m_outText).find(m_terms[l]) != std::string::npos) {
-						{
-							const std::lock_guard<mutex> lock(consolePrintGuard);
-						    std::cout << "id - " << iD << " found term: " << m_terms[l] << "! With confidence: " << m_confidence << endl;
+						if (m_outText.find(m_terms[l]) != std::string::npos) {
+							{
+								const std::lock_guard<mutex> lock(consolePrintGuard);
+								std::cout << "id - " << iD << " found term: " << m_terms[l] << "! With confidence: " << m_confidence << endl;
+							}
+							newEntry.first = m_terms[l];
+							newEntry.second.push_back((m_outText));
+							//insert_success = ss.termDict.insert(newEntry);
+							if (ss.termDict.find(m_terms[l]) == ss.termDict.end()) {
+								// not found
+								ss.termDict.insert(newEntry);
+							}
+							else {
+								// found
+								ss.termDict[m_terms[l]].push_back(m_outText);
+							}
+
+							ss.wordFound = true;
+							ss.confidence = m_confidence;
+							ss.actual_word = m_terms[l];
+
+							// Function to improve image quality at this given spot:
+
+
+
+							break;
 						}
-						ss.wordFound = true;
-						ss.confidence = m_confidence;
-						ss.actual_word = m_terms[l];
-						break;
 					}
 				}
-
-
-				//cout << "id = " << iD << " found m_outText: " << m_outText << " with m_confidence: " << m_confidence << endl;
-
 			}
-
-			/*else {
-				cout << "id = " << iD << " has no content to inspect here. " << endl;
-			}*/
-
-
-
-
-
-
 			if (lastCol)
 				break;
 		}

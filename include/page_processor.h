@@ -46,6 +46,8 @@ public:
 		bool wordFound = false;
 		std::string actual_word;
 		int confidence;
+		bool displayReady = false;
+		std::unordered_map <std::string, std::vector<std::string>> termDict;
 	};
 
 	PageProcessor(std::filesystem::path imgs[], int& num_imgs);
@@ -56,8 +58,8 @@ public:
 	void correctOrientation();
 
 	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard);
-	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard, std::mutex& consolePrintGuard);
-	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::atomic<int>& dispReadyGuard, std::mutex& consolePrintGuard);
+	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
+	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
 
 private:
 	PreprocessParams m_preprocessParams;

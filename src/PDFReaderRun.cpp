@@ -13,7 +13,7 @@ bool getDesktopResolution(int& screenHeight, int& screenWidth);
 void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& horizStack, vector<Mat>& row2_imgs, bool lastRow = false);
 
 void RunPDFReader() {
-	int maxThreads = 5;
+	int maxThreads = 6;
 	int processor_count = std::thread::hardware_concurrency();
 	std::string load_path = "../../data/PDF_imgs/";
 
@@ -61,7 +61,7 @@ void RunPDFReader() {
 	for (size_t i = 0; i < processor_count; i++) {
 		//std::filesystem::path*  filesArr = &processor_files[i];
 		//int arrSize = processor_files[i].size();
-		PageProcessors[i].setFilesArr(processor_files[i], int(i));  
+		PageProcessors[i].setFilesArr(processor_files[i], int(i));
 
 		frameThreads[i] = PageProcessors[i].pageThread(std::ref(statusStructs[i]), std::ref(counterGuard), std::ref(dispReadyGuard), std::ref(consolePrintGuard));
 	}
@@ -92,31 +92,42 @@ void RunPDFReader() {
 	float ratioHeight;
 	float ratioWidth;
 
+	// Determine image display-size:
+	
+	float resizeFactor = (maxThreads < 7 & maxThreads > 3) ? 0.1 : 0.4;
+	
 	//int area_per_img = (screenWidth * screenHeight / verticalStack * horizontalStack);
 	bool lastRow = false;
-
+	bool displayReady;
+	bool firstRound = true;
 	while (not_finished) {
-		if (dispReadyGuard == processor_count) {
+		if (firstRound) {
+			displayReady = true;
+			for (size_t h = 0; h < statusStructs.size(); h++) {
+				displayReady = (displayReady & statusStructs[h].displayReady);
+			}
+		}
+
+		if (displayReady) {
 			Mat aggregateImg;
 			vector<Mat> row2_imgs;
-
+			firstRound = false;
 			for (size_t i = 0; i < processor_count; i++) {
 				currImg_ = statusStructs[i].curr_img.clone();
 				if (statusStructs[i].struct_roi.x != 0 | statusStructs[i].struct_roi.y != 0) {
 					roi_ = statusStructs[i].struct_roi;
-					wordFound_ = statusStructs[i].wordFound;
 					id_string = to_string(i);
 
-					if (wordFound_) {
+					if (wordFound_ = statusStructs[i].wordFound) {
 						confidence_ = statusStructs[i].confidence;
 						display_string = "ID = " + id_string + ", " + statusStructs[i].actual_word + ": Confidence = " + to_string(confidence_);
-						putText(currImg_, display_string, Point(roi_.x, roi_.y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 255, 0), 5);
+						putText(currImg_, display_string, Point(roi_.x, roi_.y), FONT_HERSHEY_SIMPLEX, 2, Scalar(0, 255, 0), 2);
 						rectangle(currImg_, roi_, Scalar(0, 255, 0), 3);
 
 					}
 					else {
 						display_string = "ID = " + id_string + ", No word found.";
-						putText(currImg_, display_string, Point(roi_.x, roi_.y), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 255), 5);
+						putText(currImg_, display_string, Point(roi_.x, roi_.y), FONT_HERSHEY_SIMPLEX, 2, Scalar(0, 0, 255), 2);
 						rectangle(currImg_, roi_, Scalar(0, 0, 255), 3);
 					}
 				}
@@ -148,8 +159,8 @@ void RunPDFReader() {
 
 			}
 
-			Mat temp;
-			cv::resize(aggregateImg, temp, cv::Size(), 0.12, 0.12);
+	
+			cv::resize(aggregateImg, temp, cv::Size(), resizeFactor, resizeFactor);
 			imshow("Aggregate Image", temp);
 			waitKey(100);
 			this_thread::sleep_for(chrono::milliseconds(10));
@@ -165,8 +176,8 @@ void RunPDFReader() {
 		frameThreads[m].join();
 	}
 	delete[] frameThreads;
-
 }
+
 
 
 void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& horizStack, vector<Mat>& row2_imgs, bool lastRow) {
@@ -198,7 +209,7 @@ void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& h
 			Mat new_image(Size(row2_imgs[0].cols, row2_imgs[0].rows), lowerImg.type(), Scalar(255, 255, 255));
 			hconcat(lowerImg, new_image, lowerImg);
 		}
-		
+
 
 
 		if (aggImg.cols != lowerImg.cols) {
