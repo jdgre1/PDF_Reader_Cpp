@@ -6,7 +6,7 @@ using namespace cv::text;
 PageProcessor::PageProcessor(std::filesystem::path imgs_[], int& num_imgs)
 {
 	//api = std::make_unique<tesseract::TessBaseAPI>();
-	api = new tesseract::TessBaseAPI();
+	m_api = new tesseract::TessBaseAPI();
 
 	//m_preprocessParams->imgs_ptr = imgs_;
 	//m_preprocessParams->numImgs = num_imgs;
@@ -19,8 +19,8 @@ PageProcessor::PageProcessor() {
 PageProcessor::~PageProcessor()
 {
 	//cout << "Deleted iD: " << iD << endl;
-	if (iD >= 0)
-		delete api;
+	if (m_iD >= 0)
+		delete  m_api;
 
 
 }
@@ -29,15 +29,15 @@ PageProcessor::~PageProcessor()
 void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, const int& id)
 {
 	//tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
-	api = new tesseract::TessBaseAPI();
-	if (api->Init(NULL, "eng")) {
+	m_api = new tesseract::TessBaseAPI();
+	if (m_api->Init(NULL, "eng")) {
 		fprintf(stderr, "Could not initialize tesseract.\n");
 		exit(1);
 	}
-	api->SetDebugVariable("debug_file", "/dev/null");
+	m_api->SetDebugVariable("debug_file", "/dev/null");
 
-	iD = id;
-	cout << "object of id = " << iD << " created" << endl;
+	m_iD = id;
+	cout << "object of id = " << m_iD << " created" << endl;
 	//api = std::make_unique<tesseract::TessBaseAPI>();
 	//delete api;
 	//vector<std::filesystem::path> vec(files.size());
@@ -45,6 +45,13 @@ void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, cons
 	m_preprocessParams.imgFiles = files;
 	//m_preprocessParams->imgs_ptr = imgs_;
 	//m_preprocessParams->numImgs = num_img_s;
+
+#if HAS_CUDA
+	Mat str_element = getStructuringElement(MORPH_RECT, Size(2 * m_preprocessParams.morphKernelSize1 + 1, 2 * m_preprocessParams.morphKernelSize1 + 1), Point(m_preprocessParams.morphKernelSize1, m_preprocessParams.morphKernelSize1));
+	m_morphFilter_1 = cuda::createMorphologyFilter(m_preprocessParams.morphTransformType1, CV_8U, str_element, cv::Size(m_preprocessParams.morphKernelSize1, m_preprocessParams.morphKernelSize1));
+	str_element = getStructuringElement(MORPH_RECT, Size(2 * m_preprocessParams.morphKernelSize2 + 1, 2 * m_preprocessParams.morphKernelSize2 + 1), Point(m_preprocessParams.morphKernelSize2, m_preprocessParams.morphKernelSize2));
+	m_morphFilter_2 = cuda::createMorphologyFilter(m_preprocessParams.morphTransformType2, CV_8U, str_element, cv::Size(m_preprocessParams.morphKernelSize2, m_preprocessParams.morphKernelSize2));
+#endif
 }
 
 std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard) {
@@ -73,11 +80,11 @@ void PageProcessor::correctOrientation()
 	const char* inputfile = temp.c_str();
 	m_preprocessParams.image = pixRead(inputfile);
 
-	api->SetPageSegMode(tesseract::PSM_AUTO_OSD);
-	api->SetImage(m_preprocessParams.image);
+	m_api->SetPageSegMode(tesseract::PSM_AUTO_OSD);
+	m_api->SetImage(m_preprocessParams.image);
 
 	//api->Recognize(0); // too time-consuming and not necessary to determine dpi
-	m_preprocessParams.it = api->AnalyseLayout();
+	m_preprocessParams.it = m_api->AnalyseLayout();
 	m_preprocessParams.it->Orientation(&m_preprocessParams.orientation, &m_preprocessParams.direction, &m_preprocessParams.order, &m_preprocessParams.deskew_angle);
 
 	// Use OpenCV to read-image and correct rotation:
@@ -107,7 +114,7 @@ void PageProcessor::correctOrientation()
 	//auto api = std::make_unique<tesseract::TessBaseAPI>();
 	std::string new_filename = m_preprocessParams.file.string().substr(0, m_preprocessParams.file.string().size() - 4) + "_corrected.jpg";
 	imwrite(new_filename, dst);
-	currImg = dst;
+	m_currImg = dst;
 
 	/*Size size(int(dst.cols / 2), int(dst.rows / 2));//the dst image size,e.g.100x100
 	resize(dst, dst, size);//resize image
@@ -122,85 +129,68 @@ void PageProcessor::correctOrientation()
 
 void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consolePrintGuard)
 {
-	int winH = int(currImg.rows * 0.05);
-	int winL = int(currImg.cols * 0.3);
-	int startY = 0; int(currImg.rows * 0.87); // int(currImg.rows * 0.87);  //0;// int(currImg.rows * 0.67);
+	int winH = int(m_currImg.rows * 0.05);
+	int winL = int(m_currImg.cols * 0.3);
+	int startY = 0; int(m_currImg.rows * 0.87); // int(currImg.rows * 0.87);  //0;// int(currImg.rows * 0.67);
 	int startX = 0;// int(currImg.cols * 0.7);
 	int stepSize = 50;
 	int disp = int(winH / 2);
 	bool lastRow = false;
 	int numDigits;
-	std::pair<std::string, std::vector<std::string>> newEntry;// ("baking powder", 0.3);
 	bool insert_success;
 
 #if HAS_CUDA
 
-	ss.curr_img = currImg;
-	gpuImg.upload(currImg);
+	ss.curr_img = m_currImg;
+	m_gpuImg.upload(m_currImg);
 	cv::Scalar mean_pixel_val;
-	for (size_t j = startY; j <= (gpuImg.rows - winH); j += disp) {
 
-		if (gpuImg.rows < (j + winH)) {
-			j = gpuImg.rows - winH;
+	// Sliding window across image
+
+	for (size_t j = startY; j <= (m_gpuImg.rows - winH); j += disp) {
+
+		if (m_gpuImg.rows < (j + winH)) {
+			j = m_gpuImg.rows - winH;
 			lastRow = true;
 		}
 
 		//cout << "j = " << j << endl;
 		bool lastCol = false;
 
-		for (size_t k = startX; k <= (gpuImg.cols - winL); k += stepSize) {
+		for (size_t k = startX; k <= (m_gpuImg.cols - winL); k += stepSize) {
 			//cout << "k = " << k << endl;
-			if (gpuImg.cols < (k + winL)) {
-				k = gpuImg.cols - winL;
+			if (m_gpuImg.cols < (k + winL)) {
+				k = m_gpuImg.cols - winL;
 				lastCol = true;
 			}
-			roi = Rect(k, j, winL, winH);
-			roiImg = gpuImg(roi);
-			cv::cuda::cvtColor(roiImg, grayImg, COLOR_BGR2GRAY);
-			grayImg.download(roiMat);
+			m_roi = Rect(k, j, winL, winH);
+			m_roiImg = m_gpuImg(m_roi);
+			cv::cuda::cvtColor(m_roiImg, m_grayImg, COLOR_BGR2GRAY);
+			m_grayImg.download(m_roiMat);
 
 			// Check data is actually present in image for reading:
-			cv::Scalar mean_pixel_val = cv::mean(roiMat);
+			cv::Scalar mean_pixel_val = cv::mean(m_roiMat);
 			ss.wordFound = false;
 
 			if ((mean_pixel_val[0] < 247) & (mean_pixel_val[0] > 180)) {
-				api->SetImage(roiMat.data, roiMat.cols, roiMat.rows, 1, roiMat.step);
-				if (api->GetSourceYResolution() < 70)
-					api->SetSourceResolution(70);
-				m_outText = string(api->GetUTF8Text());
-				numDigits = 0;
-				for (auto it = m_outText.begin(); it != m_outText.end(); ++it) {
-					if (std::isdigit(*it))
-						numDigits++;
-				}
+				
 				// Only analyse text if more than 3 digits were found: 
-				if (numDigits > 3) {
-					m_confidence = api->MeanTextConf();
-					ss.struct_roi = roi;
+				if (detectAndCountNumDigits()) {
+					m_confidence = m_api->MeanTextConf();
+					ss.struct_roi = m_roi;
 
 					for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
 
 						if (m_outText.find(m_terms[l]) != std::string::npos) {
 							{
 								const std::lock_guard<mutex> lock(consolePrintGuard);
-								std::cout << "id - " << iD << " found term: " << m_terms[l] << "! With confidence: " << m_confidence << endl;
+								std::cout << "id - " << m_iD << " found term: " << m_terms[l] << "! With confidence: " << m_confidence << endl;
 							}
-							newEntry.first = m_terms[l];
-							newEntry.second.push_back((m_outText));
-							//insert_success = ss.termDict.insert(newEntry);
-							if (ss.termDict.find(m_terms[l]) == ss.termDict.end()) {
-								// not found
-								ss.termDict.insert(newEntry);
-							}
-							else {
-								// found
-								ss.termDict[m_terms[l]].push_back(m_outText);
-							}
-
+							
 							ss.wordFound = true;
 							ss.confidence = m_confidence;
 							ss.actual_word = m_terms[l];
-
+							cleanAndEnhanceOutput(ss, m_terms[l]);
 							// Function to improve image quality at this given spot:
 
 
@@ -221,9 +211,102 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 
 }
 
+void PageProcessor::extractDigitsfromText(const std::string& term) {
+	
+	std::size_t locTerm = m_outText.find(term);
+	string term_digits;
+	int nonDigitCounter = 0;
+	bool firstDigitSeen = false;
+
+	if (locTerm != std::string::npos) {
+		string m_outText_ = m_outText.substr(locTerm, m_outText.length() - locTerm);
+
+		for (auto it = m_outText_.begin(); it != m_outText_.end(); ++it) {
+
+			// TODO: Check if - Counter_non_digits == 0 after digits have been recorded (if so then this may not be the code recorded
+			//                - Ignore hyphens and spaces and potentially commas
 
 
+			if (std::isdigit(*it) & !firstDigitSeen) {
+				firstDigitSeen = true;
+				term_digits += *it;
+			}
 
+			else if(std::isdigit(*it) & firstDigitSeen)
+
+			else if (firstDigitSeen)
+				nonDigitCounter++;
+
+				
+		}
+
+	}
+		
+
+}
+
+
+void PageProcessor::cleanAndEnhanceOutput(PageProcessor::StatusStruct& ss, std::string& term) {
+
+	std::pair<std::string, std::vector<std::string>> newEntry;
+	newEntry.first = term;
+	newEntry.second.push_back((m_outText));
+	
+	// 1. Add term without filtering/preprocessing
+	if (ss.termDict.find(term) == ss.termDict.end()) {
+		// not found
+		ss.termDict.insert(newEntry);
+	}
+	else {
+		// found
+		ss.termDict[term].push_back(m_outText);
+	}
+
+	// 2. Image-processing Methodology (Open->Close->Open->Close)
+	m_morphFilter_1->apply(m_grayImg, m_mask);
+	m_morphFilter_2->apply(m_mask, m_mask);
+	m_morphFilter_1->apply(m_mask, m_mask);
+	m_morphFilter_2->apply(m_mask, m_mask);
+
+	m_mask.download(m_roiMat);
+
+	// Only analyse text if more than 3 digits were found: 
+	if (detectAndCountNumDigits() > 3) {
+		m_confidence = m_api->MeanTextConf();
+		ss.struct_roi = m_roi;
+		
+		std::pair<std::string, std::vector<std::string>> newEntry;
+		newEntry.first = term;
+		newEntry.second.push_back((m_outText));
+
+		// 1. Add term without filtering/preprocessing
+		if (ss.termDict.find(term) == ss.termDict.end()) {
+			// not found
+			ss.termDict.insert(newEntry);
+		}
+		else {
+			// found
+			ss.termDict[term].push_back(m_outText);
+		}
+	}
+
+}
+
+int PageProcessor::detectAndCountNumDigits() {
+	
+	m_api->SetImage(m_roiMat.data, m_roiMat.cols, m_roiMat.rows, 1, m_roiMat.step);
+	if (m_api->GetSourceYResolution() < 70)
+		m_api->SetSourceResolution(70);
+	m_outText = string(m_api->GetUTF8Text());
+
+	int numDigits = 0;
+	for (auto it = m_outText.begin(); it != m_outText.end(); ++it) {
+		if (std::isdigit(*it))
+			numDigits++;
+	}
+
+	return numDigits;
+}
 
 Pix* mat8ToPix(cv::Mat* mat8)
 {

@@ -62,8 +62,7 @@ void RunPDFReader() {
 		//std::filesystem::path*  filesArr = &processor_files[i];
 		//int arrSize = processor_files[i].size();
 		PageProcessors[i].setFilesArr(processor_files[i], int(i));
-
-		frameThreads[i] = PageProcessors[i].pageThread(std::ref(statusStructs[i]), std::ref(counterGuard), std::ref(dispReadyGuard), std::ref(consolePrintGuard));
+		frameThreads[i] = PageProcessors[i].pageThread(std::ref(statusStructs[i]), std::ref(counterGuard), std::ref(consolePrintGuard));
 	}
 
 	// main thread to show status of pdf-reading:
