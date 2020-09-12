@@ -13,7 +13,7 @@ bool getDesktopResolution(int& screenHeight, int& screenWidth);
 void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& horizStack, vector<Mat>& row2_imgs, bool lastRow = false);
 
 void RunPDFReader() {
-	int maxThreads = 6;
+	int maxThreads = 3;
 	int processor_count = std::thread::hardware_concurrency();
 	std::string load_path = "../../data/PDF_imgs/";
 
@@ -117,7 +117,7 @@ void RunPDFReader() {
 					roi_ = statusStructs[i].struct_roi;
 					id_string = to_string(i);
 
-					if (wordFound_ = statusStructs[i].wordFound) {
+					if (statusStructs[i].wordFound) {
 						confidence_ = statusStructs[i].confidence;
 						display_string = "ID = " + id_string + ", " + statusStructs[i].actual_word + ": Confidence = " + to_string(confidence_);
 						putText(currImg_, display_string, Point(roi_.x, roi_.y), FONT_HERSHEY_SIMPLEX, 2, Scalar(0, 255, 0), 2);
@@ -208,8 +208,6 @@ void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& h
 			Mat new_image(Size(row2_imgs[0].cols, row2_imgs[0].rows), lowerImg.type(), Scalar(255, 255, 255));
 			hconcat(lowerImg, new_image, lowerImg);
 		}
-
-
 
 		if (aggImg.cols != lowerImg.cols) {
 			int numCols = min(aggImg.cols, lowerImg.cols);

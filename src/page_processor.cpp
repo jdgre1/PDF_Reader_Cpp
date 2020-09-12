@@ -131,8 +131,8 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 {
 	int winH = int(m_currImg.rows * 0.05);
 	int winL = int(m_currImg.cols * 0.3);
-	int startY = 0; int(m_currImg.rows * 0.87); // int(currImg.rows * 0.87);  //0;// int(currImg.rows * 0.67);
-	int startX = 0;// int(currImg.cols * 0.7);
+	int startY = int(m_currImg.rows * 0.6);  //0;// 
+	int startX = 0;// int(m_currImg.cols * 0.7);
 	int stepSize = 50;
 	int disp = int(winH / 2);
 	bool lastRow = false;
@@ -146,7 +146,7 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 	cv::Scalar mean_pixel_val;
 
 	// Sliding window across image
-
+	ss.wordFound = false;
 	for (size_t j = startY; j <= (m_gpuImg.rows - winH); j += disp) {
 
 		if (m_gpuImg.rows < (j + winH)) {
@@ -166,18 +166,22 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 			m_roi = Rect(k, j, winL, winH);
 			m_roiImg = m_gpuImg(m_roi);
 			cv::cuda::cvtColor(m_roiImg, m_grayImg, COLOR_BGR2GRAY);
+			
 			m_grayImg.download(m_roiMat);
 
 			// Check data is actually present in image for reading:
 			cv::Scalar mean_pixel_val = cv::mean(m_roiMat);
-			ss.wordFound = false;
+			
 
 			if ((mean_pixel_val[0] < 247) & (mean_pixel_val[0] > 180)) {
-				
+				m_api->SetImage(mat8ToPix(&m_roiMat));
+				m_outText = m_api->GetUTF8Text();
+				ss.struct_roi = m_roi;
+				ss.wordFound = false;
 				// Only analyse text if more than 3 digits were found: 
-				if (detectAndCountNumDigits()) {
+				if (detectAndCountNumDigits() > 1) {
 					m_confidence = m_api->MeanTextConf();
-					ss.struct_roi = m_roi;
+					
 
 					for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
 
@@ -186,15 +190,12 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 								const std::lock_guard<mutex> lock(consolePrintGuard);
 								std::cout << "id - " << m_iD << " found term: " << m_terms[l] << "! With confidence: " << m_confidence << endl;
 							}
-							
+
 							ss.wordFound = true;
 							ss.confidence = m_confidence;
 							ss.actual_word = m_terms[l];
-							cleanAndEnhanceOutput(ss, m_terms[l]);
-							// Function to improve image quality at this given spot:
-
-
-
+							// Function to improve image quality at this given spot: (Perhaps improve quality of read)
+							saveAndCleanText(ss, m_terms[l]);
 							break;
 						}
 					}
@@ -211,8 +212,42 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 
 }
 
-void PageProcessor::extractDigitsfromText(const std::string& term) {
+int PageProcessor::detectAndCountNumDigits() {
+
+	int numDigits = 0;
 	
+	for (auto it = m_outText.begin(); it != m_outText.end(); ++it) {
+		numDigits += std::isdigit(static_cast<unsigned char>(*it)) ? 1 : 0;  
+		if (numDigits > 1)
+			return numDigits;
+	}
+	return 0;
+}
+
+void PageProcessor::saveAndCleanText(PageProcessor::StatusStruct& ss, const std::string& term) {
+
+	// 1. Save all digits just as they appear
+	extractDigitsfromText(ss, term);
+
+	// 2. Image-processing Methodology (Open->Close->Open->Close) ---> AND THEN try to save all digits
+	m_morphFilter_1->apply(m_grayImg, m_mask);
+	m_morphFilter_2->apply(m_mask, m_mask);
+	m_morphFilter_1->apply(m_mask, m_mask);
+	m_morphFilter_2->apply(m_mask, m_mask);
+	m_mask.download(m_roiMat);
+
+	// Only analyse text if more than 3 digits were found: 
+	if (detectAndCountNumDigits() > 1) {
+		m_confidence = m_api->MeanTextConf();
+		ss.struct_roi = m_roi;
+		extractDigitsfromText(ss, term);
+	}
+
+}
+
+
+void PageProcessor::extractDigitsfromText(PageProcessor::StatusStruct& ss, const std::string& term) {
+
 	std::size_t locTerm = m_outText.find(term);
 	string term_digits;
 	int nonDigitCounter = 0;
@@ -220,38 +255,33 @@ void PageProcessor::extractDigitsfromText(const std::string& term) {
 
 	if (locTerm != std::string::npos) {
 		string m_outText_ = m_outText.substr(locTerm, m_outText.length() - locTerm);
-
 		for (auto it = m_outText_.begin(); it != m_outText_.end(); ++it) {
 
-			// TODO: Check if - Counter_non_digits == 0 after digits have been recorded (if so then this may not be the code recorded
-			//                - Ignore hyphens and spaces and potentially commas
-
-
-			if (std::isdigit(*it) & !firstDigitSeen) {
+			if (std::isdigit(*it)) {
 				firstDigitSeen = true;
 				term_digits += *it;
+				nonDigitCounter = 0;
 			}
 
-			else if(std::isdigit(*it) & firstDigitSeen)
-
-			else if (firstDigitSeen)
+			else if (firstDigitSeen & (*it != ' ') & (*it != '-'))
 				nonDigitCounter++;
 
-				
+			if ((term_digits.length() > 3) & (nonDigitCounter > 0))
+				addTermToDict(ss, term, term_digits);
+				break;
 		}
 
 	}
-		
-
 }
 
 
-void PageProcessor::cleanAndEnhanceOutput(PageProcessor::StatusStruct& ss, std::string& term) {
+void PageProcessor::addTermToDict(PageProcessor::StatusStruct& ss, const std::string& term, const std::string& term_digits) {
 
 	std::pair<std::string, std::vector<std::string>> newEntry;
 	newEntry.first = term;
-	newEntry.second.push_back((m_outText));
-	
+	string str_to_add = (term_digits.length() > 0) ? term_digits : m_outText;
+	newEntry.second.push_back((str_to_add));
+
 	// 1. Add term without filtering/preprocessing
 	if (ss.termDict.find(term) == ss.termDict.end()) {
 		// not found
@@ -259,56 +289,18 @@ void PageProcessor::cleanAndEnhanceOutput(PageProcessor::StatusStruct& ss, std::
 	}
 	else {
 		// found
-		ss.termDict[term].push_back(m_outText);
-	}
-
-	// 2. Image-processing Methodology (Open->Close->Open->Close)
-	m_morphFilter_1->apply(m_grayImg, m_mask);
-	m_morphFilter_2->apply(m_mask, m_mask);
-	m_morphFilter_1->apply(m_mask, m_mask);
-	m_morphFilter_2->apply(m_mask, m_mask);
-
-	m_mask.download(m_roiMat);
-
-	// Only analyse text if more than 3 digits were found: 
-	if (detectAndCountNumDigits() > 3) {
-		m_confidence = m_api->MeanTextConf();
-		ss.struct_roi = m_roi;
-		
-		std::pair<std::string, std::vector<std::string>> newEntry;
-		newEntry.first = term;
-		newEntry.second.push_back((m_outText));
-
-		// 1. Add term without filtering/preprocessing
-		if (ss.termDict.find(term) == ss.termDict.end()) {
-			// not found
-			ss.termDict.insert(newEntry);
-		}
-		else {
-			// found
-			ss.termDict[term].push_back(m_outText);
-		}
+		ss.termDict[term].push_back(term_digits);
 	}
 
 }
 
-int PageProcessor::detectAndCountNumDigits() {
-	
-	m_api->SetImage(m_roiMat.data, m_roiMat.cols, m_roiMat.rows, 1, m_roiMat.step);
-	if (m_api->GetSourceYResolution() < 70)
-		m_api->SetSourceResolution(70);
-	m_outText = string(m_api->GetUTF8Text());
 
-	int numDigits = 0;
-	for (auto it = m_outText.begin(); it != m_outText.end(); ++it) {
-		if (std::isdigit(*it))
-			numDigits++;
-	}
 
-	return numDigits;
-}
 
-Pix* mat8ToPix(cv::Mat* mat8)
+
+
+
+Pix* PageProcessor::mat8ToPix(cv::Mat* mat8)
 {
 	Pix* pixd = pixCreate(mat8->size().width, mat8->size().height, 8);
 	for (int y = 0; y < mat8->rows; y++) {
@@ -319,7 +311,7 @@ Pix* mat8ToPix(cv::Mat* mat8)
 	return pixd;
 }
 
-cv::Mat pix8ToMat(Pix* pix8)
+cv::Mat PageProcessor::pix8ToMat(Pix* pix8)
 {
 	cv::Mat mat(cv::Size(pix8->w, pix8->h), CV_8UC1);
 	uint32_t* line = pix8->data;

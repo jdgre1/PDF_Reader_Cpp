@@ -67,9 +67,13 @@ public:
 	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard);
 	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
 	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
-	void cleanAndEnhanceOutput(PageProcessor::StatusStruct& ss, const std::string& term);
+	void saveAndCleanText(PageProcessor::StatusStruct& ss, const std::string& term);
 	int detectAndCountNumDigits();
-	void extractDigitsfromText(const std::string& term);
+	void extractDigitsfromText(PageProcessor::StatusStruct& ss, const std::string& term);
+	void addTermToDict(PageProcessor::StatusStruct& ss, const std::string& term, const std::string& term_digits = NULL);
+	Pix* PageProcessor::mat8ToPix(cv::Mat* mat8);
+	cv::Mat PageProcessor::pix8ToMat(Pix* pix8);
+
 
 private:
 	PreprocessParams m_preprocessParams;
