@@ -276,7 +276,11 @@ void PageProcessor::saveAndCleanText(PageProcessor::StatusStruct& ss, const std:
 	m_morphFilter_2->apply(m_mask, m_mask);
 	m_mask.download(m_roiMat);
 
-	// Only analyse text if more than 3 digits were found: 
+	// 3. Now see if above image processing has improved image quality:
+	m_api->SetImage(mat8ToPix(&m_roiMat));
+	m_outText = m_api->GetUTF8Text();
+
+	// 4. Only analyse text if more than 3 digits were found: 
 	if (detectAndCountNumDigits() > 1) {
 		m_confidence = m_api->MeanTextConf();
 		ss.struct_roi = m_roi;
