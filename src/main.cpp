@@ -8,7 +8,7 @@ void RunPDFReader();
 
 int main(int argc, char* argv[])
 {
-    std::ofstream myfile;
+ 
 	RunPDFReader();
 
 }

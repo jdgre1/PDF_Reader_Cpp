@@ -67,6 +67,7 @@ public:
 	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard);
 	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
 	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
+	void logResults(PageProcessor::StatusStruct& ss);
 	void saveAndCleanText(PageProcessor::StatusStruct& ss, const std::string& term);
 	int detectAndCountNumDigits();
 	void extractDigitsfromText(PageProcessor::StatusStruct& ss, const std::string& term);

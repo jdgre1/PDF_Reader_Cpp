@@ -12,7 +12,7 @@ bool getDesktopResolution(int& screenHeight, int& screenWidth);
 void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& horizStack, vector<Mat>& row2_imgs, bool lastRow = false);
 
 void RunPDFReader() {
-	int maxThreads = 3;
+	int maxThreads = 6;
 	int processor_count = std::thread::hardware_concurrency();
 	std::string load_path = "../../data/PDF_imgs/";
 
