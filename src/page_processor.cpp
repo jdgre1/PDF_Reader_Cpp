@@ -1,4 +1,5 @@
 #include <page_processor.h> 
+#include <fstream>
 using namespace cv;
 using namespace std;
 using namespace cv::text;
@@ -60,16 +61,50 @@ std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atom
 
 void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard) {
 
-	for (size_t i = 0; i < m_preprocessParams.imgFiles.size(); i++) {
+	// Run through list of images
+	//for (size_t i = 0; i < m_preprocessParams.imgFiles.size(); i++) {
+	for (size_t i = 0; i < 1; i++) {
 		m_preprocessParams.file = m_preprocessParams.imgFiles[i];
 		correctOrientation();
 		ss.displayReady = true;
 		scanPage(ss, consolePrintGuard);
 		int a;
 	}
-	// Augment counter-guard variable to indicate thread is finished.
-	cntrGuard++;
 
+	// Evaluate all recorded data and save most likely data to textfile:
+	unordered_map<std::string, std::vector<std::string>>::iterator it;
+	std::ofstream myfile;
+	string fileName = "../../data/terms_ID_" + to_string(m_iD) + ".txt";
+	myfile.open(fileName);
+	
+	for (it = ss.termDict.begin(); it != ss.termDict.end(); it++)
+	{
+		myfile << "-----Term-----: " << it->first << endl;
+		std::unordered_map <std::string, int> tempTermsWeightedDict;
+		for (size_t i = 0; i < it->second.size() ; i++){
+			std::pair<std::string, int> newEntry;
+			newEntry.first = it->second[i];
+
+			if (tempTermsWeightedDict.find(it->second[i]) == tempTermsWeightedDict.end()) {
+				// not found
+				ss.termDict.insert(newEntry);
+			}
+			else {
+				// found
+				tempTermsWeightedDict[it->second[i]]++;
+			}
+		}
+
+		std::vector<std::pair<string, int>> elems(tempTermsWeightedDict.begin(), tempTermsWeightedDict.end());
+		std::sort(elems.begin(), elems.end(), [](pair<string, int> a, pair<string, int> b) { return a.second < b.second; }); // lambda expression
+		//for (std::vector<int>::iterator it = std::begin(elems); it != std::end(elems); ++it) {
+		//	std::cout << *it << "\n";
+		//}
+	}
+
+	
+	// Augment counter-guard variable to indicate thread is finished:
+	cntrGuard++;
 
 }
 
@@ -125,13 +160,11 @@ void PageProcessor::correctOrientation()
 
 }
 
-
-
 void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consolePrintGuard)
 {
 	int winH = int(m_currImg.rows * 0.05);
 	int winL = int(m_currImg.cols * 0.3);
-	int startY = int(m_currImg.rows * 0.6);  //0;// 
+	int startY = int(m_currImg.rows * 0.6);  //0;//
 	int startX = 0;// int(m_currImg.cols * 0.7);
 	int stepSize = 50;
 	int disp = int(winH / 2);
@@ -147,7 +180,7 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 
 	// Sliding window across image
 	ss.wordFound = false;
-	for (size_t j = startY; j <= (m_gpuImg.rows - winH); j += disp) {
+	for (size_t j = startY; j <= (m_gpuImg.rows - 5*winH); j += disp) {
 
 		if (m_gpuImg.rows < (j + winH)) {
 			j = m_gpuImg.rows - winH;
@@ -182,7 +215,6 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 				if (detectAndCountNumDigits() > 1) {
 					m_confidence = m_api->MeanTextConf();
 					
-
 					for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
 
 						if (m_outText.find(m_terms[l]) != std::string::npos) {
@@ -255,9 +287,9 @@ void PageProcessor::extractDigitsfromText(PageProcessor::StatusStruct& ss, const
 
 	if (locTerm != std::string::npos) {
 		string m_outText_ = m_outText.substr(locTerm, m_outText.length() - locTerm);
-		for (auto it = m_outText_.begin(); it != m_outText_.end(); ++it) {
-
-			if (std::isdigit(*it)) {
+		for (auto it = m_outText_.cbegin(); it != m_outText_.cend(); ++it) {
+			cout << "static_cast<unsigned char>(*it): " << static_cast<unsigned char>(*it) << endl;
+			if (std::isdigit(static_cast<unsigned char>(*it))) {
 				firstDigitSeen = true;
 				term_digits += *it;
 				nonDigitCounter = 0;
@@ -266,9 +298,10 @@ void PageProcessor::extractDigitsfromText(PageProcessor::StatusStruct& ss, const
 			else if (firstDigitSeen & (*it != ' ') & (*it != '-'))
 				nonDigitCounter++;
 
-			if ((term_digits.length() > 3) & (nonDigitCounter > 0))
+			if ((term_digits.length() > 3) & (nonDigitCounter > 0)) {
 				addTermToDict(ss, term, term_digits);
 				break;
+			}
 		}
 
 	}

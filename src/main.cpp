@@ -1,4 +1,5 @@
 #include <pch.h>
+#include <fstream>
 using namespace std;
 using namespace cv;
 
@@ -7,7 +8,7 @@ void RunPDFReader();
 
 int main(int argc, char* argv[])
 {
-    
+    std::ofstream myfile;
 	RunPDFReader();
 
 }

@@ -8,7 +8,6 @@ using namespace cv::text;
 
 namespace fs = std::filesystem;
 
-cv::Mat pix8ToMat(Pix* pix8);
 bool getDesktopResolution(int& screenHeight, int& screenWidth);
 void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& horizStack, vector<Mat>& row2_imgs, bool lastRow = false);
 
