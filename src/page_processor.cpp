@@ -9,8 +9,6 @@ PageProcessor::PageProcessor(std::filesystem::path imgs_[], int& num_imgs)
 	//api = std::make_unique<tesseract::TessBaseAPI>();
 	m_api = new tesseract::TessBaseAPI();
 
-	//m_preprocessParams->imgs_ptr = imgs_;
-	//m_preprocessParams->numImgs = num_imgs;
 }
 PageProcessor::PageProcessor() {
 	//m_preprocessParams->api = std::make_unique<tesseract::TessBaseAPI>();
@@ -26,10 +24,8 @@ PageProcessor::~PageProcessor()
 
 }
 
-//void PageProcessor::setFilesArr(std::filesystem::path imgs_[], int& num_img_s)  
 void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, const int& id)
 {
-	//tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 	m_api = new tesseract::TessBaseAPI();
 	if (m_api->Init(NULL, "eng")) {
 		fprintf(stderr, "Could not initialize tesseract.\n");
@@ -39,13 +35,10 @@ void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, cons
 
 	m_iD = id;
 	cout << "object of id = " << m_iD << " created" << endl;
-	//api = std::make_unique<tesseract::TessBaseAPI>();
-	//delete api;
-	//vector<std::filesystem::path> vec(files.size());
+
 	m_preprocessParams.imgFiles.resize(files.size());// = vector<std::filesystem::path> vec(files.size());
 	m_preprocessParams.imgFiles = files;
-	//m_preprocessParams->imgs_ptr = imgs_;
-	//m_preprocessParams->numImgs = num_img_s;
+
 
 #if HAS_CUDA
 	Mat str_element = getStructuringElement(MORPH_RECT, Size(2 * m_preprocessParams.morphKernelSize1 + 1, 2 * m_preprocessParams.morphKernelSize1 + 1), Point(m_preprocessParams.morphKernelSize1, m_preprocessParams.morphKernelSize1));
@@ -146,7 +139,7 @@ void PageProcessor::correctOrientation()
 		major_rotate_angle = 90.0;
 	}
 
-	Mat rot_mat = getRotationMatrix2D(src_center, m_preprocessParams.deskew_angle - major_rotate_angle, 1);
+	Mat rot_mat = getRotationMatrix2D(src_center, float(m_preprocessParams.deskew_angle) - major_rotate_angle, 1);
 	cv::Rect2f bbox = cv::RotatedRect(cv::Point2f(), m_preprocessParams.img_mat.size(), m_preprocessParams.deskew_angle - major_rotate_angle).boundingRect2f(); //https://stackoverflow.com/questions/22041699/rotate-an-image-without-cropping-in-opencv-in-c
 	// adjust transformation matrix
 	rot_mat.at<double>(0, 2) += bbox.width / 2.0 - m_preprocessParams.img_mat.cols / 2.0;
@@ -159,12 +152,7 @@ void PageProcessor::correctOrientation()
 	imwrite(new_filename, dst);
 	m_currImg = dst;
 
-	/*Size size(int(dst.cols / 2), int(dst.rows / 2));//the dst image size,e.g.100x100
-	resize(dst, dst, size);//resize image
 
-	imshow("img_mat", m_preprocessParams.img_mat);
-	imshow("dst", dst);
-	waitKey();*/
 
 }
 
@@ -172,8 +160,8 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 {
 	int winH = int(m_currImg.rows * 0.05);
 	int winL = int(m_currImg.cols * 0.3);
-	int startY = 0;// int(m_currImg.rows * 0.45);  //
-	int startX = 0;// int(m_currImg.cols * 0.7);
+	int startY = 0; // int(m_currImg.rows * 0.65); //0
+	int startX = 0; // int(m_currImg.cols * 0.7);
 	int stepSize = 50;
 	int disp = int(winH / 2);
 	bool lastRow = false;
@@ -269,18 +257,25 @@ void PageProcessor::saveAndCleanText(PageProcessor::StatusStruct& ss, const std:
 	// 1. Save all digits just as they appear
 	extractDigitsfromText(ss, term);
 
-	// 2. Image-processing Methodology (Open->Close->Open->Close) ---> AND THEN try to save all digits
+	// 2. Image-processing Methodology (Open->Close->Open->Close) ---> AND THEN see if digits easier to read
 	m_morphFilter_1->apply(m_grayImg, m_mask);
 	m_morphFilter_2->apply(m_mask, m_mask);
-	m_morphFilter_1->apply(m_mask, m_mask);
-	m_morphFilter_2->apply(m_mask, m_mask);
+	//m_morphFilter_1->apply(m_mask, m_mask);
+	//m_morphFilter_2->apply(m_mask, m_mask);
 	m_mask.download(m_roiMat);
+
+#define SHOW_FILTER_OUTPUT 0
+#if SHOW_FILTER_OUTPUT
+	imshow("Mast output", m_roiMat);
+	waitKey();
+	destroyWindow("Mask output");
+#endif // FILTER_OUTPUT
 
 	// 3. Now see if above image processing has improved image quality:
 	m_api->SetImage(mat8ToPix(&m_roiMat));
 	m_outText = m_api->GetUTF8Text();
 
-	// 4. Only analyse text if more than 3 digits were found: 
+	// 4. Only analyse text if at least 2 digits were found: 
 	if (detectAndCountNumDigits() > 1) {
 		m_confidence = m_api->MeanTextConf();
 		ss.struct_roi = m_roi;
@@ -300,7 +295,7 @@ void PageProcessor::extractDigitsfromText(PageProcessor::StatusStruct& ss, const
 	if (locTerm != std::string::npos) {
 		string m_outText_ = m_outText.substr(locTerm, m_outText.length() - locTerm);
 		for (auto it = m_outText_.cbegin(); it != m_outText_.cend(); ++it) {
-			//cout << "static_cast<unsigned char>(*it): " << static_cast<unsigned char>(*it) << endl;
+			
 			if (std::isdigit(static_cast<unsigned char>(*it))) {
 				firstDigitSeen = true;
 				term_digits += *it;
@@ -339,12 +334,7 @@ void PageProcessor::addTermToDict(PageProcessor::StatusStruct& ss, const std::st
 
 }
 
-
-
-
-
-
-
+// Following 2 methods gathered from "https://stackoverflow.com/questions/39293922/convert-between-opencv-mat-and-leptonica-pix"
 Pix* PageProcessor::mat8ToPix(cv::Mat* mat8)
 {
 	Pix* pixd = pixCreate(mat8->size().width, mat8->size().height, 8);

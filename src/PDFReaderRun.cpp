@@ -12,11 +12,17 @@ bool getDesktopResolution(int& screenHeight, int& screenWidth);
 void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& horizStack, vector<Mat>& row2_imgs, bool lastRow = false);
 
 void RunPDFReader() {
+
+	// #TODO 
+	// - Still need a solution to convert PDF (.pdf files) to image files. 
+
+	// Manually set maximum threads to run program
 	int maxThreads = 6;
 	int processor_count = std::thread::hardware_concurrency();
-	std::string load_path = "../../data/PDF_imgs/";
+	if (processor_count > maxThreads) { processor_count = maxThreads; }
 
-	int remainder_files = 0;
+	// Prepare jobs/images for each thread
+	std::string load_path = "../../data/PDF_imgs/";
 	vector<std::filesystem::path> files;
 	for (const auto& entry : fs::directory_iterator(load_path)) {
 
@@ -26,19 +32,13 @@ void RunPDFReader() {
 		}
 	}
 
+	// if less files than processors, need less processors active
 	int num_files = files.size();
-	if (processor_count > maxThreads) {
-		processor_count = maxThreads;
-	}
+	if (num_files < processor_count) {processor_count = num_files;}
 
-	if (num_files < processor_count) {
-		processor_count = num_files;
-	}
-
-
-	vector < vector<std::filesystem::path>> processor_files(processor_count);
 
 	// Add files to each processor depending on number of files to be processed
+	vector < vector<std::filesystem::path>> processor_files(processor_count);
 	int j = 0;
 	for (size_t i = 0; i < num_files; i++) {
 		processor_files[j].push_back(files[i]);
@@ -46,20 +46,23 @@ void RunPDFReader() {
 		j = (j == processor_count) ? 0 : j;
 	}
 
-	std::filesystem::path* filesArr[5];
-	PageProcessor pp;// = DashboardTracker();
+
+	// Set number of "Page-Processors" equal to number of processors 
+	PageProcessor pp;
 	vector<PageProcessor> PageProcessors(processor_count, pp);
+
+	// Multithreading variables
 	thread* frameThreads{ new thread[processor_count] };
+	std::atomic<int> counterGuard;
+	mutex consolePrintGuard;
+	
+	// Structs to pass status' of individual threads to main thread
 	PageProcessor::StatusStruct ss;
 	vector<PageProcessor::StatusStruct> statusStructs(processor_count, ss);
-	int finishedCounter = 0;
-	std::atomic<int> counterGuard;
-	std::atomic<int> dispReadyGuard;
-	mutex consolePrintGuard;
 
+
+	// Initialise threads
 	for (size_t i = 0; i < processor_count; i++) {
-		//std::filesystem::path*  filesArr = &processor_files[i];
-		//int arrSize = processor_files[i].size();
 		PageProcessors[i].setFilesArr(processor_files[i], int(i));
 		frameThreads[i] = PageProcessors[i].pageThread(std::ref(statusStructs[i]), std::ref(counterGuard), std::ref(consolePrintGuard));
 	}
@@ -77,11 +80,9 @@ void RunPDFReader() {
 	int screenWidth = 0;
 	int screenHeight = 0;
 	getDesktopResolution(screenWidth, screenHeight);
-	int area;
-	int area_per_img;
-	//int num_imgs = processor_count;
 
-	// Determine image layout
+
+	// Determine aggregate image layout (All images(number = processor_count) will be stitched together)
 	int verticalStack = (processor_count > 2) ? 2 : 1;
 	int horizontalStack = (processor_count > 4) ? 3 : 2;
 	int maxHeight = (verticalStack == 1) ? screenHeight : int(screenHeight / 2);
@@ -91,10 +92,8 @@ void RunPDFReader() {
 	float ratioWidth;
 
 	// Determine image display-size:
+	float resizeFactor = ((maxThreads < 7) & (maxThreads > 3)) ? 0.1 : 0.4;
 	
-	float resizeFactor = (maxThreads < 7 & maxThreads > 3) ? 0.1 : 0.4;
-	
-	//int area_per_img = (screenWidth * screenHeight / verticalStack * horizontalStack);
 	bool lastRow = false;
 	bool displayReady;
 	bool firstRound = true;
@@ -112,7 +111,7 @@ void RunPDFReader() {
 			firstRound = false;
 			for (size_t i = 0; i < processor_count; i++) {
 				currImg_ = statusStructs[i].curr_img.clone();
-				if (statusStructs[i].struct_roi.x != 0 | statusStructs[i].struct_roi.y != 0) {
+				if ((statusStructs[i].struct_roi.x != 0) | (statusStructs[i].struct_roi.y != 0)) {
 					roi_ = statusStructs[i].struct_roi;
 					id_string = to_string(i);
 
@@ -148,7 +147,7 @@ void RunPDFReader() {
 
 				(ratioHeight < ratioWidth) ? cv::resize(currImg_, temp, cv::Size(), ratioHeight, ratioHeight) : cv::resize(currImg_, temp, cv::Size(), ratioWidth, ratioWidth);
 
-				lastRow = (i == processor_count - 1) ? true : false;
+				lastRow = (i == (processor_count - 1)) ? true : false;
 				if (i > 2) {
 					row2_imgs.push_back(temp);
 				}
@@ -196,7 +195,7 @@ void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& h
 	}
 
 	Mat lowerImg;
-	if (lastRow & row2_imgs.size() > 0)
+	if (lastRow & (row2_imgs.size() > 0))
 	{
 		lowerImg = row2_imgs[0];
 		for (int j = 1; j < row2_imgs.size(); j++) {
@@ -215,7 +214,6 @@ void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& h
 		}
 
 		vconcat(aggImg, lowerImg, aggImg);
-
 	}
 
 }
@@ -235,7 +233,7 @@ bool getDesktopResolution(int& screenWidth, int& screenHeight) {
 	screenWidth = desktop.right;
 	screenHeight = desktop.bottom;
 
-	return (desktop.right > 0 & desktop.bottom > 0) ? true : false;
+	return ((desktop.right > 0) & (desktop.bottom > 0)) ? true : false;
 }
 
 
