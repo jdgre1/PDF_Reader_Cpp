@@ -10,7 +10,7 @@ add_executable(${TST_BINARY} ${project_sources} ${project_headers})
 
 add_test(NAME ${TST_BINARY} COMMAND ${TST_BINARY})
 
-set( DEPENDENCIES ${OpenCV_LIBS} ${Tesseract_LIBRARIES} gtest OPENCV_API_CALLS STANDARD_LIB_CALLS PageProcessor )
+set( DEPENDENCIES ${OpenCV_LIBS} ${Tesseract_LIBRARIES} gtest OPENCV_API_CALLS TESSERACT_API_CALLS STANDARD_LIB_CALLS PageProcessor )
 
 target_link_libraries(${TST_BINARY} PUBLIC ${DEPENDENCIES}) # target linked library of source_binary
 

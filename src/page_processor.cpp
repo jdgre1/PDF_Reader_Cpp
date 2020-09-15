@@ -95,6 +95,7 @@ void PageProcessor::logResults(PageProcessor::StatusStruct& ss) {
 			}
 		}
 		j++;
+
 		// lambda expression to convert unordered_map to vector 
 		std::vector<std::pair<string, int>> elems;
 		for_each(tempTermsWeightedDict.begin(), tempTermsWeightedDict.end(), [&elems](const std::pair<string, int>& entry) {elems.push_back(entry); });
@@ -151,8 +152,6 @@ void PageProcessor::correctOrientation()
 	std::string new_filename = m_preprocessParams.file.string().substr(0, m_preprocessParams.file.string().size() - 4) + "_corrected.jpg";
 	imwrite(new_filename, dst);
 	m_currImg = dst;
-
-
 
 }
 

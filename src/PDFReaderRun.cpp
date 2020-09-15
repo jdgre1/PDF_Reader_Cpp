@@ -16,7 +16,7 @@ void RunPDFReader() {
 	// #TODO 
 	// - Still need a solution to convert PDF (.pdf files) to image files. 
 
-	// Manually set maximum threads to run program
+	// Manually set maximum threads to run program - (Maximum for display purposes is currently hard-coded to 6) 
 	int maxThreads = 6;
 	int processor_count = std::thread::hardware_concurrency();
 	if (processor_count > maxThreads) { processor_count = maxThreads; }
@@ -91,7 +91,7 @@ void RunPDFReader() {
 	float ratioHeight;
 	float ratioWidth;
 
-	// Determine image display-size:
+	// Determine image display resize-factor so that all images will fit on screen:
 	float resizeFactor = ((maxThreads < 7) & (maxThreads > 3)) ? 0.1 : 0.4;
 	
 	bool lastRow = false;
@@ -156,7 +156,6 @@ void RunPDFReader() {
 
 			}
 
-	
 			cv::resize(aggregateImg, temp, cv::Size(), resizeFactor, resizeFactor);
 			imshow("Aggregate Image", temp);
 			waitKey(100);

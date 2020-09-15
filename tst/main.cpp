@@ -1,5 +1,7 @@
 #include "gtest/gtest.h"
 #include <standard_library_calls.h>
+#include "tesseract_api_calls.h"
+
 //#include <boost/locale.hpp>
 
 #define DEBUG_BUILD 1;
