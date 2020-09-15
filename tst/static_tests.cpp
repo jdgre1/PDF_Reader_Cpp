@@ -33,21 +33,4 @@ TEST(TESSERACT_API_CALLS, checkTesseractObjectInitialisation) {
 
 }
 
-/*
-TEST(OPENCV_API_FUNCTION_CALLS, checkObjectDetectorInitialisation) {
-    //arrange
-    //act
-    //assert
-    ASSERT_EQ(OPENCV_API_CALLS::check_ObjectDetectorInitialisation(), true) << "Failed to initialise object detector";
-
-}
-
-TEST(OPENCV_API_FUNCTION_CALLS, detectAndDrawLines) {
-    //arrange
-    //act
-    //assert
-    ASSERT_EQ(OPENCV_API_CALLS::detectAndDrawLines(), true) << "Failed to detect lines in the image";
-
-}
-*/
 

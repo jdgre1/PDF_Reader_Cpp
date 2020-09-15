@@ -6,12 +6,9 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include <stdio.h>
-#include <conio.h>
-#include <stdlib.h>
-#include <direct.h>
+#include <leptonica/allheaders.h>
+#include <tesseract/baseapi.h>
 
-//class CalibParams_Mock
 
 class SetupTest : public testing::Test {
 
@@ -21,6 +18,13 @@ public:
 	// Constructor / Destructor
 	SetupTest();
 	~SetupTest();
+	bool initialiseWithEnglish();
+
+private:
+	tesseract::TessBaseAPI* m_api;
+
+
+
 };
 #endif
 
