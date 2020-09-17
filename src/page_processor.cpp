@@ -48,11 +48,11 @@ void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, cons
 #endif
 }
 
-std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard) {
-	return std::thread(&PageProcessor::runThread, this, std::ref(ss), std::ref(cntrGuard), std::ref(consolePrintGuard));
+std::thread PageProcessor::pageThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard, std::atomic<bool>& stopThreads) {
+	return std::thread(&PageProcessor::runThread, this, std::ref(ss), std::ref(cntrGuard), std::ref(consolePrintGuard), std::ref(stopThreads));
 }
 
-void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard) {
+void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>& cntrGuard, mutex& consolePrintGuard, std::atomic<bool>& stopThreads) {
 
 	// Run through list of images
 	for (size_t i = 0; i < m_preprocessParams.imgFiles.size(); i++) {
@@ -60,45 +60,49 @@ void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>&
 		m_preprocessParams.file = m_preprocessParams.imgFiles[i];
 		correctOrientation();
 		ss.displayReady = true;
-		scanPage(ss, consolePrintGuard);
+		scanPage(ss, consolePrintGuard, stopThreads);
 	}
 
 	// Evaluate all recorded data and save most likely data to textfile:
 	logResults(ss);
-	
+
 	// Augment counter-guard variable to indicate thread is finished:
 	cntrGuard++;
 
 }
 
 void PageProcessor::logResults(PageProcessor::StatusStruct& ss) {
-	unordered_map<std::string, std::vector<std::string>>::iterator it;
+	
 	std::ofstream myfile;
 	string fileName = "../../data/terms_ID_" + to_string(m_iD) + ".txt";
 	myfile.open(fileName);
+	
 	int j = 0;
-	for (it = ss.termDict.begin(); it != ss.termDict.end(); it++)
-	{
+	unordered_map<std::string, std::vector<std::string>>::iterator it;
+	std::pair<string, int> newEntry;
+
+	for (it = ss.termDict.begin(); it != ss.termDict.end(); it++){
 		myfile << "-----Term-----: " << it->first << endl;
-		std::unordered_map <cv::String, int> tempTermsWeightedDict;
+
+		std::unordered_map<cv::String, int> termsWeightedDict_temp;
 		for (size_t i = 0; i < it->second.size(); i++) {
-			std::pair<string, int> newEntry;
-			newEntry.first = it->second[i];
-			if (tempTermsWeightedDict.find(it->second[i]) == tempTermsWeightedDict.end()) {
+			
+			if (termsWeightedDict_temp.find(it->second[i]) == termsWeightedDict_temp.end()) {
 				// not found
+				newEntry.first = it->second[i];
 				newEntry.second = 1;
-				tempTermsWeightedDict.insert(newEntry);
+				termsWeightedDict_temp.insert(newEntry);
 			}
 			else {
 				// found
-				tempTermsWeightedDict[it->second[i]]++;
+				termsWeightedDict_temp[it->second[i]]++;
 			}
 		}
 		j++;
 
 		// lambda expression to convert unordered_map to vector 
 		std::vector<std::pair<string, int>> elems;
-		for_each(tempTermsWeightedDict.begin(), tempTermsWeightedDict.end(), [&elems](const std::pair<string, int>& entry) {elems.push_back(entry); });
+		for_each(termsWeightedDict_temp.begin(), termsWeightedDict_temp.end(), [&elems](const std::pair<string, int>& entry) {elems.push_back(entry); });
 		std::sort(elems.begin(), elems.end(), [](pair<string, int> a, pair<string, int> b) { return a.second > b.second; });
 
 		for (std::vector<pair<string, int>>::iterator it2 = std::begin(elems); it2 != std::end(elems); ++it2) {
@@ -155,7 +159,7 @@ void PageProcessor::correctOrientation()
 
 }
 
-void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consolePrintGuard)
+void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads)
 {
 	int winH = int(m_currImg.rows * 0.05);
 	int winL = int(m_currImg.cols * 0.3);
@@ -186,6 +190,10 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 		bool lastCol = false;
 
 		for (size_t k = startX; k <= (m_gpuImg.cols - winL); k += stepSize) {
+
+			if (stopThreads) {
+				goto stop;
+			}
 			//cout << "k = " << k << endl;
 			if (m_gpuImg.cols < (k + winL)) {
 				k = m_gpuImg.cols - winL;
@@ -194,12 +202,12 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 			m_roi = Rect(k, j, winL, winH);
 			m_roiImg = m_gpuImg(m_roi);
 			cv::cuda::cvtColor(m_roiImg, m_grayImg, COLOR_BGR2GRAY);
-			
+
 			m_grayImg.download(m_roiMat);
 
 			// Check data is actually present in image for reading:
 			cv::Scalar mean_pixel_val = cv::mean(m_roiMat);
-			
+
 
 			if ((mean_pixel_val[0] < 247) & (mean_pixel_val[0] > 180)) {
 				m_api->SetImage(mat8ToPix(&m_roiMat));
@@ -209,7 +217,7 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 				// Only analyse text if more than 3 digits were found: 
 				if (detectAndCountNumDigits() > 1) {
 					m_confidence = m_api->MeanTextConf();
-					
+
 					for (size_t l = 0; l < sizeof(m_terms) / sizeof(m_terms[0]); l++) {
 
 						if (m_outText.find(m_terms[l]) != std::string::npos) {
@@ -236,15 +244,16 @@ void PageProcessor::scanPage(PageProcessor::StatusStruct& ss, std::mutex& consol
 			break;
 	}
 #endif
-
+stop:; // goto if quitting program 
 }
+
 
 int PageProcessor::detectAndCountNumDigits() {
 
 	int numDigits = 0;
-	
+
 	for (auto it = m_outText.begin(); it != m_outText.end(); ++it) {
-		numDigits += std::isdigit(static_cast<unsigned char>(*it)) ? 1 : 0;  
+		numDigits += std::isdigit(static_cast<unsigned char>(*it)) ? 1 : 0;
 		if (numDigits > 1)
 			return numDigits;
 	}
@@ -294,7 +303,7 @@ void PageProcessor::extractDigitsfromText(PageProcessor::StatusStruct& ss, const
 	if (locTerm != std::string::npos) {
 		string m_outText_ = m_outText.substr(locTerm, m_outText.length() - locTerm);
 		for (auto it = m_outText_.cbegin(); it != m_outText_.cend(); ++it) {
-			
+
 			if (std::isdigit(static_cast<unsigned char>(*it))) {
 				firstDigitSeen = true;
 				term_digits += *it;
@@ -319,7 +328,7 @@ void PageProcessor::addTermToDict(PageProcessor::StatusStruct& ss, const std::st
 	std::pair<std::string, std::vector<std::string>> newEntry;
 	newEntry.first = term;
 	string str_to_add = (term_digits.length() > 0) ? term_digits : m_outText;
-	newEntry.second.push_back((str_to_add));
+	newEntry.second.push_back(str_to_add);
 
 	// 1. Add term without filtering/preprocessing
 	if (ss.termDict.find(term) == ss.termDict.end()) {
@@ -333,7 +342,7 @@ void PageProcessor::addTermToDict(PageProcessor::StatusStruct& ss, const std::st
 
 }
 
-// Following 2 methods gathered from "https://stackoverflow.com/questions/39293922/convert-between-opencv-mat-and-leptonica-pix"
+// Following 2 methods obtained from "https://stackoverflow.com/questions/39293922/convert-between-opencv-mat-and-leptonica-pix"
 Pix* PageProcessor::mat8ToPix(cv::Mat* mat8)
 {
 	Pix* pixd = pixCreate(mat8->size().width, mat8->size().height, 8);

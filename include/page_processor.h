@@ -64,9 +64,9 @@ public:
 	void setFilesArr(const std::vector<std::filesystem::path>&, const int& id);
 	void correctOrientation();
 
-	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard);
-	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
-	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard);
+	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads);
+	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads);
+	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads);
 	void logResults(PageProcessor::StatusStruct& ss);
 	void saveAndCleanText(PageProcessor::StatusStruct& ss, const std::string& term);
 	int detectAndCountNumDigits();

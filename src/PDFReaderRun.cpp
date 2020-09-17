@@ -13,6 +13,10 @@ void stitchImgTogether(size_t& i, Mat& aggImg, Mat& temp, int& vertStack, int& h
 
 void RunPDFReader() {
 
+	// Allow premature termination of program
+	char quit = 0; 
+	atomic<bool> stop_threading = false;
+
 	// #TODO 
 	// - Still need a solution to convert PDF (.pdf files) to image files. 
 
@@ -28,7 +32,7 @@ void RunPDFReader() {
 
 		// Avoid previously processed data 
 		if ((entry.path().string()).find("_corrected") == std::string::npos) {
-			files.push_back(entry.path());
+			files.emplace_back(entry.path());
 		}
 	}
 
@@ -41,7 +45,7 @@ void RunPDFReader() {
 	vector < vector<std::filesystem::path>> processor_files(processor_count);
 	int j = 0;
 	for (size_t i = 0; i < num_files; i++) {
-		processor_files[j].push_back(files[i]);
+		processor_files[j].emplace_back(files[i]);
 		j++;
 		j = (j == processor_count) ? 0 : j;
 	}
@@ -64,7 +68,7 @@ void RunPDFReader() {
 	// Initialise threads
 	for (size_t i = 0; i < processor_count; i++) {
 		PageProcessors[i].setFilesArr(processor_files[i], int(i));
-		frameThreads[i] = PageProcessors[i].pageThread(std::ref(statusStructs[i]), std::ref(counterGuard), std::ref(consolePrintGuard));
+		frameThreads[i] = PageProcessors[i].pageThread(std::ref(statusStructs[i]), std::ref(counterGuard), std::ref(consolePrintGuard), std::ref(stop_threading));
 	}
 
 	// main thread to show status of pdf-reading:
@@ -149,7 +153,7 @@ void RunPDFReader() {
 
 				lastRow = (i == (processor_count - 1)) ? true : false;
 				if (i > 2) {
-					row2_imgs.push_back(temp);
+					row2_imgs.emplace_back(temp);
 				}
 
 				stitchImgTogether(i, aggregateImg, temp, verticalStack, horizontalStack, row2_imgs, lastRow);
@@ -158,20 +162,29 @@ void RunPDFReader() {
 
 			cv::resize(aggregateImg, temp, cv::Size(), resizeFactor, resizeFactor);
 			imshow("Aggregate Image", temp);
-			waitKey(100);
+			quit = waitKey(100);
 			this_thread::sleep_for(chrono::milliseconds(10));
 			not_finished = (counterGuard == processor_count) ? false : true;
+			if (quit == 'q') {
+				stop_threading = true;
+				for (int m = 0; m < processor_count; m++) {
+					frameThreads[m].join();
+				}
+				delete[] frameThreads;
+				not_finished = false;
+			}
 		}
 
 		else {
 			this_thread::sleep_for(chrono::milliseconds(100));
 		}
 	}
-
-	for (int m = 0; m < processor_count; m++) {
-		frameThreads[m].join();
+	if (quit != 'q') {
+		for (int m = 0; m < processor_count; m++) {
+			frameThreads[m].join();
+		}
+		delete[] frameThreads;
 	}
-	delete[] frameThreads;
 }
 
 
