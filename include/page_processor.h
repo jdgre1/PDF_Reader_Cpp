@@ -57,17 +57,25 @@ public:
 		std::unordered_map <std::string, std::vector<std::string>> termDict;
 	};
 
-	PageProcessor(std::filesystem::path imgs[], int& num_imgs);
+
+	// Constructor
 	PageProcessor();
+
+	// Rule of 3
+	// 1. Destructor
 	~PageProcessor();
-	//void setFilesArr(std::filesystem::path imgs[], int& num_imgs); vector<std::filesystem::path>
+	// 2. Copy assignment operator
+	PageProcessor& operator=(PageProcessor&) = default;
+	// 3. Copy constructor
+	PageProcessor(const PageProcessor&);        //PageProcessor(const PageProcessor&) = delete; // (if to disable copy constructor) 
+	
 	void setFilesArr(const std::vector<std::filesystem::path>&, const int& id);
 	void correctOrientation();
 
 	void scanPage(StatusStruct& ss, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads);
 	std::thread pageThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads);
 	void runThread(StatusStruct& ss, std::atomic<int>& cntrGuard, std::mutex& consolePrintGuard, std::atomic<bool>& stopThreads);
-	void logResults(PageProcessor::StatusStruct& ss);
+	void logResults(const PageProcessor::StatusStruct& ss);
 	void saveAndCleanText(PageProcessor::StatusStruct& ss, const std::string& term);
 	int detectAndCountNumDigits();
 	void extractDigitsfromText(PageProcessor::StatusStruct& ss, const std::string& term);

@@ -4,16 +4,28 @@ using namespace cv;
 using namespace std;
 using namespace cv::text;
 
-PageProcessor::PageProcessor(std::filesystem::path imgs_[], int& num_imgs)
-{
-	//api = std::make_unique<tesseract::TessBaseAPI>();
-	m_api = new tesseract::TessBaseAPI();
 
-}
 PageProcessor::PageProcessor() {
-	//m_preprocessParams->api = std::make_unique<tesseract::TessBaseAPI>();
-	//m_preprocessParams = PageProcessor::PreprocessParams();
+
+	m_api = new tesseract::TessBaseAPI();
+	if (m_api->Init(NULL, "eng")) {
+		fprintf(stderr, "Could not initialize tesseract.\n");
+		exit(1);
+	}
+	m_api->SetDebugVariable("debug_file", "/dev/null");
 }
+
+PageProcessor::PageProcessor(const PageProcessor& copy) // Implemented copy constructor
+{
+	m_api = new tesseract::TessBaseAPI();
+	if (m_api->Init(NULL, "eng")) {
+		fprintf(stderr, "Could not initialize tesseract.\n");
+		exit(1);
+	}
+	m_api->SetDebugVariable("debug_file", "/dev/null");
+	//cout << "m_api was copied to address " << &m_api << endl;
+}
+
 
 PageProcessor::~PageProcessor()
 {
@@ -26,13 +38,6 @@ PageProcessor::~PageProcessor()
 
 void PageProcessor::setFilesArr(const vector<std::filesystem::path>& files, const int& id)
 {
-	m_api = new tesseract::TessBaseAPI();
-	if (m_api->Init(NULL, "eng")) {
-		fprintf(stderr, "Could not initialize tesseract.\n");
-		exit(1);
-	}
-	m_api->SetDebugVariable("debug_file", "/dev/null");
-
 	m_iD = id;
 	cout << "object of id = " << m_iD << " created" << endl;
 
@@ -71,7 +76,7 @@ void PageProcessor::runThread(PageProcessor::StatusStruct& ss, std::atomic<int>&
 
 }
 
-void PageProcessor::logResults(PageProcessor::StatusStruct& ss) {
+void PageProcessor::logResults(const PageProcessor::StatusStruct& ss) {
 	
 	std::ofstream myfile;
 	string fileName = "../../data/terms_ID_" + to_string(m_iD) + ".txt";
@@ -81,21 +86,24 @@ void PageProcessor::logResults(PageProcessor::StatusStruct& ss) {
 	unordered_map<std::string, std::vector<std::string>>::iterator it;
 	std::pair<string, int> newEntry;
 
-	for (it = ss.termDict.begin(); it != ss.termDict.end(); it++){
-		myfile << "-----Term-----: " << it->first << endl;
+	//for (it = ss.termDict.begin(); it != ss.termDict.end(); it++){
+	// The syntax with : it's a range based for. It means that loop will parse each element inside unordered map.
+    // Inside the for, you need to specify the alias auto& in order to avoid creating a copy of the elements (assignment operator)
+	for (auto& it : ss.termDict) { 
+		myfile << "-----Term-----: " << it.first << endl;
 
 		std::unordered_map<cv::String, int> termsWeightedDict_temp;
-		for (size_t i = 0; i < it->second.size(); i++) {
+		for (size_t i = 0; i < it.second.size(); i++) {
 			
-			if (termsWeightedDict_temp.find(it->second[i]) == termsWeightedDict_temp.end()) {
+			if (termsWeightedDict_temp.find(it.second[i]) == termsWeightedDict_temp.end()) {
 				// not found
-				newEntry.first = it->second[i];
+				newEntry.first = it.second[i];
 				newEntry.second = 1;
 				termsWeightedDict_temp.insert(newEntry);
 			}
 			else {
 				// found
-				termsWeightedDict_temp[it->second[i]]++;
+				termsWeightedDict_temp[it.second[i]]++;
 			}
 		}
 		j++;
@@ -103,6 +111,8 @@ void PageProcessor::logResults(PageProcessor::StatusStruct& ss) {
 		// lambda expression to convert unordered_map to vector 
 		std::vector<std::pair<string, int>> elems;
 		for_each(termsWeightedDict_temp.begin(), termsWeightedDict_temp.end(), [&elems](const std::pair<string, int>& entry) {elems.push_back(entry); });
+
+		// Sort hits in descending order
 		std::sort(elems.begin(), elems.end(), [](pair<string, int> a, pair<string, int> b) { return a.second > b.second; });
 
 		for (std::vector<pair<string, int>>::iterator it2 = std::begin(elems); it2 != std::end(elems); ++it2) {

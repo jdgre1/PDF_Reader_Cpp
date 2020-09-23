@@ -53,7 +53,7 @@ void RunPDFReader() {
 
 	// Set number of "Page-Processors" equal to number of processors 
 	PageProcessor pp;
-	vector<PageProcessor> PageProcessors(processor_count, pp);
+	vector<PageProcessor> PageProcessors(processor_count, pp); // Here we are making ('n' processor_count) copies of the object pp and hence copy constructor cannot be deleted. 
 
 	// Multithreading variables
 	thread* frameThreads{ new thread[processor_count] };
