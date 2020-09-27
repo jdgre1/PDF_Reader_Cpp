@@ -4,6 +4,7 @@ using namespace cv;
 using namespace std;
 using namespace cv::text;
 #include <filesystem>
+#include <server.h>
 
 
 namespace fs = std::filesystem;
@@ -55,15 +56,23 @@ void RunPDFReader() {
 	PageProcessor pp;
 	vector<PageProcessor> PageProcessors(processor_count, pp); // Here we are making ('n' processor_count) copies of the object pp and hence copy constructor cannot be deleted. 
 
+
+	// Server-client thread to share output with another PC
+	std::string ipAddress = Server::getIpAddress();
+	Server server(ipAddress, 54000);
+	thread serverThread;
+	if (server.init()) {
+		serverThread = server.serverThread(std::ref(stop_threading));
+	}
+
 	// Multithreading variables
 	thread* frameThreads{ new thread[processor_count] };
 	std::atomic<int> counterGuard;
 	mutex consolePrintGuard;
-	
+
 	// Structs to pass status' of individual threads to main thread
 	PageProcessor::StatusStruct ss;
 	vector<PageProcessor::StatusStruct> statusStructs(processor_count, ss);
-
 
 	// Initialise threads
 	for (size_t i = 0; i < processor_count; i++) {
@@ -162,6 +171,8 @@ void RunPDFReader() {
 
 			cv::resize(aggregateImg, temp, cv::Size(), resizeFactor, resizeFactor);
 			imshow("Aggregate Image", temp);
+			server.setFrame(temp);
+			server.setNewFrameReady(true);
 			quit = waitKey(100);
 			this_thread::sleep_for(chrono::milliseconds(10));
 			not_finished = (counterGuard == processor_count) ? false : true;
@@ -170,6 +181,7 @@ void RunPDFReader() {
 				for (int m = 0; m < processor_count; m++) {
 					frameThreads[m].join();
 				}
+				serverThread.join();
 				delete[] frameThreads;
 				not_finished = false;
 			}
@@ -183,6 +195,7 @@ void RunPDFReader() {
 		for (int m = 0; m < processor_count; m++) {
 			frameThreads[m].join();
 		}
+		serverThread.join();
 		delete[] frameThreads;
 	}
 }
