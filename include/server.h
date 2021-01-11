@@ -20,7 +20,6 @@
 class Server {
 
 
-
 public:  // Prefix "FD" indicates FileDescriptor because all sockets in Unix are file-descriptors
 
 	//typedef void (*MessageReceivedCallback)(Server serverListener, int& socketID, std::string& msg);

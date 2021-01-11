@@ -9,7 +9,7 @@ add_library(OPENCV_API_CALLS STATIC opencv_api_calls.cpp ../include/opencv_api_c
 add_library(TESSERACT_API_CALLS STATIC tesseract_api_calls.cpp ../include/tesseract_api_calls.h)
 add_library(STANDARD_LIB_CALLS STATIC standard_library_calls.cpp ../include/standard_library_calls.h)
 add_library(Server STATIC server.cpp ../include/server.h)
-target_link_libraries(Server ${OpenCV_LIBS})
+target_link_libraries(Server ${OpenCV_LIBS} wsock32 ws2_32)
 target_link_libraries(OPENCV_API_CALLS ${OpenCV_LIBS})
 target_link_libraries(TESSERACT_API_CALLS ${Tesseract_LIBRARIES})
 
