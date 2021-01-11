@@ -25,6 +25,7 @@ find_package( Tesseract 3.05 REQUIRED )
 
 #set(ImageMagick_INCLUDE_DIR "C:/Users/gregg/Documents/ImageMagick-Windows-master/ImageMagick-Windows-master/ImageMagick/Magick++/lib")
 
+# IMPORTANT - "include_directories" must come before "add_subdirectory"!
 include_directories(include ${OpenCV_INCLUDE_DIR} ${Tesseract_INCLUDE_DIRS})# ${ImageMagick_INCLUDE_DIR} ${ImageMagick_INCLUDE_DIR2})
 
 add_subdirectory(src)
